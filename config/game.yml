@@ -1,0 +1,32 @@
+# ============================================================================
+# House rules and presentation.
+#
+# Everything here is a knob you can turn without touching code. The deck
+# itself lives in config/deck.yml.
+# ============================================================================
+
+rules:
+  # Mercy Rule: reach this many cards and you are eliminated on the spot.
+  handLimit: 25
+  startingHand: 7
+
+  # 0 = everyone passes their whole hand in the direction of play.
+  zeroPassesHands: true
+  # 7 = swap hands with a player of your choice.
+  sevenSwapsHands: true
+  # Draw cards can be stacked onto an equal-or-lower draw card.
+  # Turning this off makes the game dramatically gentler.
+  stackingEnabled: true
+
+  # Safety valve for the simulation harness. Not a real UNO rule; a game that
+  # exceeds this is a bug, and the harness fails rather than hanging.
+  maxTurns: 5000
+
+table:
+  # Milliseconds a bot "thinks" before playing, in local games.
+  # The server uses UNO_BOT_DELAY_MS instead.
+  botDelayMs: 550
+
+sound:
+  # Start muted. Can also be forced off with UNO_MUTE=1.
+  muted: false

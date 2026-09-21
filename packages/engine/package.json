@@ -1,0 +1,12 @@
+{
+  "name": "@uno/engine",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "devDependencies": {
+    "@uno/bots": "workspace:*"
+  }
+}

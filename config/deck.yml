@@ -1,0 +1,48 @@
+# ============================================================================
+# UNO Show 'Em No Mercy — deck composition
+# ============================================================================
+# This file is the SINGLE source of truth for what is in the deck. The engine
+# reads it at startup and refuses to boot unless the counts sum to `total`.
+#
+# ⚠ TASK 0 — VERIFY THESE COUNTS AGAINST YOUR PHYSICAL DECK.
+#
+# No public source publishes an authoritative per-type breakdown (we checked
+# the UNO Wiki, gamerules.com, unorules.com, unonomercyrules.com, unoregler.com
+# and editioncards.com — all state "168 cards" and stop there). The numbers
+# below are the best reconstruction from the most specific source found, which
+# confirmed: numbers 0-9 x2 per colour, Draw 2 x3, Draw 4 x2, Skip x3,
+# Skip Everyone x2 per colour. Reverse and Discard All are inferred to make
+# 168, and the wild split is inferred.
+#
+# Getting this wrong is INVISIBLE for weeks and then silently poisons every
+# probability the hard bot computes. Sit down with the deck, count it, fix
+# this file. Nothing else in the codebase needs to change.
+# ============================================================================
+
+total: 168
+
+colors: [red, yellow, green, blue]
+
+# How many of each card, PER COLOUR. Multiplied by 4 colours.
+perColor:
+  # number cards — each of 0,1,2,...,9 appears this many times
+  numbers: 2          # => 10 ranks x 2 = 20 cards per colour
+
+  drawTwo: 3
+  skip: 3
+  reverse: 3
+  drawFour: 2         # the COLOURED +4 (not the wild one)
+  skipEveryone: 2
+  discardAll: 1
+  # per-colour subtotal: 20 + 3 + 3 + 3 + 2 + 2 + 1 = 34
+  # x 4 colours = 136
+
+# Wild cards — not tied to a colour. Total must be `total` - (perColor sum x 4).
+wilds:
+  wild: 4
+  wildDrawFour: 4
+  wildDrawSix: 8
+  wildDrawTen: 4
+  wildReverseDrawFour: 4
+  wildColorRoulette: 8
+  # subtotal: 32

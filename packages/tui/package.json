@@ -1,0 +1,17 @@
+{
+  "name": "@uno/tui",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/main.tsx",
+  "dependencies": {
+    "@opentui/core": "0.5.11",
+    "@opentui/react": "0.5.11",
+    "@uno/bots": "workspace:*",
+    "@uno/engine": "workspace:*",
+    "react": "19.3.0",
+    "@uno/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0"
+  }
+}

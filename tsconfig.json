@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext"],
+    "types": ["bun"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"]
+}
