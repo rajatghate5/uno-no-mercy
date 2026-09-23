@@ -153,6 +153,21 @@ export interface RuleConfig {
   readonly sevenSwapsHands: boolean;
   /** Draw cards can be stacked onto an equal-or-lower draw card. */
   readonly stackingEnabled: boolean;
+  /**
+   * How strict stacking is.
+   *
+   * 'escalating' is the real No Mercy rule: your card must be equal or higher
+   * than the one played at you, so a stack only ever grows in severity.
+   * 'any' lets a +2 answer a +10, which makes stacks far easier to survive
+   * and dramatically lowers the elimination rate.
+   */
+  readonly stackMode: 'escalating' | 'any';
+  /**
+   * Draw until you get something playable, rather than drawing exactly one
+   * card and passing. A common house rule; it speeds the game up and makes
+   * hands grow in bursts.
+   */
+  readonly drawUntilPlayable: boolean;
   /** Safety valve for the simulation harness; not a real UNO rule. */
   readonly maxTurns: number;
 }
@@ -163,5 +178,7 @@ export const DEFAULT_RULES: RuleConfig = {
   zeroPassesHands: true,
   sevenSwapsHands: true,
   stackingEnabled: true,
+  stackMode: 'escalating',
+  drawUntilPlayable: false,
   maxTurns: 5000,
 };

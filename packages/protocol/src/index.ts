@@ -30,18 +30,28 @@ export interface HouseRules {
   handLimit: number;
   /** Draw cards can be stacked onto an equal-or-lower draw card. */
   stacking: boolean;
+  /**
+   * 'escalating' is the real rule - your card must be equal or higher, so a
+   * stack only gets worse. 'any' lets a +2 answer a +10, which makes stacks
+   * survivable and sharply reduces eliminations.
+   */
+  stackMode: 'escalating' | 'any';
   /** 7 swaps hands with a player of your choice. */
   sevenSwap: boolean;
   /** 0 passes every hand in the direction of play. */
   zeroPass: boolean;
+  /** Draw until something is playable, instead of drawing exactly one card. */
+  drawUntilPlayable: boolean;
 }
 
 export const DEFAULT_HOUSE_RULES: HouseRules = {
   startingHand: 7,
   handLimit: 25,
   stacking: true,
+  stackMode: 'escalating',
   sevenSwap: true,
   zeroPass: true,
+  drawUntilPlayable: false,
 };
 
 /** Bounds enforced by the server. A hand limit below the deal is unplayable. */
@@ -50,11 +60,38 @@ export const HOUSE_RULE_LIMITS = {
   handLimit: { min: 10, max: 60 },
 } as const;
 
+/** How long bots pause before acting, so the table stays readable. */
+export type BotSpeed = 'fast' | 'normal' | 'slow';
+
+export const BOT_SPEED_MS: Record<BotSpeed, number> = {
+  fast: 300,
+  normal: 700,
+  slow: 1400,
+};
+
 export interface RoomSettings {
   botCount: number;
   difficulty: Difficulty;
   maxPlayers: number;
+  /** Pace of bot turns. Purely presentational; it changes no outcome. */
+  botSpeed: BotSpeed;
+  /** Whether strangers with the code may watch without playing. */
+  allowSpectators: boolean;
   rules: HouseRules;
+}
+
+/** A fresh room's settings. One place to change when a field is added. */
+export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
+  botCount: 0,
+  difficulty: 'medium',
+  maxPlayers: 6,
+  botSpeed: 'normal',
+  allowSpectators: true,
+  rules: DEFAULT_HOUSE_RULES,
+};
+
+export function cleanBotSpeed(v: unknown): BotSpeed {
+  return v === 'fast' || v === 'slow' ? v : 'normal';
 }
 
 /** Clamp untrusted house rules into a playable range. */
@@ -84,8 +121,10 @@ export function cleanHouseRules(raw: unknown): HouseRules {
     // A limit at or below the deal would eliminate everyone on the first turn.
     handLimit: Math.max(handLimit, startingHand + 3),
     stacking: bool(r.stacking, DEFAULT_HOUSE_RULES.stacking),
+    stackMode: r.stackMode === 'any' ? 'any' : 'escalating',
     sevenSwap: bool(r.sevenSwap, DEFAULT_HOUSE_RULES.sevenSwap),
     zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
+    drawUntilPlayable: bool(r.drawUntilPlayable, DEFAULT_HOUSE_RULES.drawUntilPlayable),
   };
 }
 

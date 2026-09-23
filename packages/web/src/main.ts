@@ -15,7 +15,7 @@ import type { Difficulty } from '@uno/bots';
 import { LocalGame } from './game/local.js';
 import { NetworkGame } from './game/network.js';
 import { Sound } from './game/sound.js';
-import { DEFAULT_HOUSE_RULES } from '@uno/protocol';
+import { DEFAULT_ROOM_SETTINGS } from '@uno/protocol';
 import { resolveServer } from './game/serverUrl.js';
 import { Store } from './game/store.js';
 import type { PlayableGame } from './game/types.js';
@@ -475,10 +475,10 @@ function toMenu() {
             ? {
                 kind: 'create',
                 settings: {
+                  ...DEFAULT_ROOM_SETTINGS,
                   botCount: choice.bots,
                   difficulty: choice.difficulty,
                   maxPlayers: choice.seats,
-                  rules: DEFAULT_HOUSE_RULES,
                 },
               }
             : choice.kind === 'join'

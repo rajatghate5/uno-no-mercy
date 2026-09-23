@@ -77,9 +77,14 @@ export class Room {
     /** Injected so tests can run without real timers. */
     private readonly schedule: (fn: () => void, ms: number) => ReturnType<typeof setTimeout> = setTimeout,
     private readonly now: () => number = Date.now,
-    private readonly botDelayMs: number = BOT_DELAY_MS,
+    private botDelayMs: number = BOT_DELAY_MS,
   ) {
     this.rng = seed ^ 0x51ed270b;
+  }
+
+  /** Bot pace is a lobby setting, so it can change before the deal. */
+  setBotDelay(ms: number): void {
+    this.botDelayMs = ms;
   }
 
   get humanSeats(): Seat[] {
@@ -167,8 +172,10 @@ export class Room {
         startingHand: house.startingHand,
         handLimit: house.handLimit,
         stackingEnabled: house.stacking,
+        stackMode: house.stackMode,
         sevenSwapsHands: house.sevenSwap,
         zeroPassesHands: house.zeroPass,
+        drawUntilPlayable: house.drawUntilPlayable,
       },
     });
     this.state = created.state;

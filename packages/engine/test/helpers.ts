@@ -20,7 +20,10 @@ export function player(id: string, hand: Card[], over: Partial<Player> = {}): Pl
   return { id, name: id, hand, eliminated: false, finished: false, isBot: true, ...over };
 }
 
-export function state(over: Partial<GameState> & { players: Player[] }): GameState {
+/** `rules` is deliberately Partial here so a test can override one lever. */
+export function state(
+  over: Omit<Partial<GameState>, 'rules'> & { players: Player[]; rules?: Partial<RuleConfig> },
+): GameState {
   const rules: RuleConfig = { ...DEFAULT_RULES, ...(over.rules ?? {}) };
   return {
     turn: 0,

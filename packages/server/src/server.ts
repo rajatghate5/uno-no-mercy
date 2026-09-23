@@ -12,10 +12,12 @@
 
 import type { ServerWebSocket } from 'bun';
 import {
-  DEFAULT_HOUSE_RULES,
+  BOT_SPEED_MS,
+  DEFAULT_ROOM_SETTINGS,
   MAX_PLAYERS,
   PROTOCOL_VERSION,
   cleanChat,
+  cleanBotSpeed,
   cleanHouseRules,
   cleanName,
   parseClientMessage,
@@ -48,12 +50,7 @@ const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000;
 const RATE_LIMIT_MSGS = 40;
 const RATE_LIMIT_WINDOW_MS = 5000;
 
-const DEFAULT_SETTINGS: RoomSettings = {
-  botCount: 0,
-  difficulty: 'medium',
-  maxPlayers: 6,
-  rules: DEFAULT_HOUSE_RULES,
-};
+const DEFAULT_SETTINGS: RoomSettings = DEFAULT_ROOM_SETTINGS;
 
 export interface ServerOptions {
   port?: number;
@@ -170,6 +167,8 @@ export function createServer(opts: ServerOptions = {}) {
           ...msg.settings,
           botCount: clamp(msg.settings?.botCount ?? DEFAULT_SETTINGS.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? DEFAULT_SETTINGS.maxPlayers, 2, MAX_PLAYERS),
+          botSpeed: cleanBotSpeed(msg.settings?.botSpeed),
+          allowSpectators: msg.settings?.allowSpectators !== false,
           rules: cleanHouseRules(msg.settings?.rules),
         };
         const room = new Room(
@@ -179,7 +178,7 @@ export function createServer(opts: ServerOptions = {}) {
           (Math.random() * 0xffffffff) >>> 0,
           setTimeout,
           Date.now,
-          opts.botDelayMs ?? BOT_DELAY_MS,
+          opts.botDelayMs ?? BOT_SPEED_MS[settings.botSpeed],
         );
         const seat: Seat = {
           id,
@@ -229,6 +228,9 @@ export function createServer(opts: ServerOptions = {}) {
       case 'spectate': {
         const room = rooms.get(String(msg.code ?? '').toUpperCase());
         if (!room) return fail(ws, 'no_such_room', `No room with code ${msg.code}.`);
+        if (!room.settings.allowSpectators) {
+          return fail(ws, 'room_full', 'This room is not accepting spectators.');
+        }
         room.spectators.set(id, (m) => send(ws, m));
         ws.data.code = room.code;
         ws.data.seatId = id;
@@ -277,9 +279,14 @@ export function createServer(opts: ServerOptions = {}) {
           ...msg.settings,
           botCount: clamp(msg.settings?.botCount ?? room.settings.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? room.settings.maxPlayers, 2, MAX_PLAYERS),
+          botSpeed: cleanBotSpeed(msg.settings?.botSpeed ?? room.settings.botSpeed),
+          allowSpectators:
+            msg.settings?.allowSpectators ?? room.settings.allowSpectators,
           // Re-clamped on every change: a client can send anything.
           rules: cleanHouseRules(msg.settings?.rules ?? room.settings.rules),
         };
+        // Bot pace can change mid-lobby, so push it to the room.
+        room.setBotDelay(BOT_SPEED_MS[room.settings.botSpeed]);
         room.broadcastLobby();
         return;
       }

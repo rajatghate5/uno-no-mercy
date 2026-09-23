@@ -30,6 +30,7 @@ export interface PlayView {
   readonly stackValue: number;
   readonly activeColor: Color | null;
   readonly stackingEnabled: boolean;
+  readonly stackMode: 'escalating' | 'any';
   readonly discardTop: Card | undefined;
 }
 
@@ -40,6 +41,7 @@ export function viewOf(state: GameState): PlayView {
     stackValue: state.stackValue,
     activeColor: state.activeColor,
     stackingEnabled: state.rules.stackingEnabled,
+    stackMode: state.rules.stackMode,
     discardTop: state.discardPile[state.discardPile.length - 1],
   };
 }
@@ -77,6 +79,9 @@ export function canPlayView(view: PlayView, card: Card): boolean {
     // Color Roulette is not a fixed-value draw card and never joins a stack.
     if (card.kind === 'wildColorRoulette') return false;
     if (!isDrawCard(card.kind)) return false;
+    // 'any' lets a small draw card answer a big one; 'escalating' is the real
+    // No Mercy rule where a stack can only get worse.
+    if (view.stackMode === 'any') return true;
     return drawValue(card.kind) >= view.stackValue;
   }
 

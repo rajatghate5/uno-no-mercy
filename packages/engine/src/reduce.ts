@@ -6,7 +6,7 @@
  */
 
 import type { GameEvent } from './events.js';
-import { isLegalAction, topCard, type Action } from './legal.js';
+import { canPlay, isLegalAction, topCard, type Action } from './legal.js';
 import { shuffle } from './rng.js';
 import {
   drawValue,
@@ -315,7 +315,23 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
       break;
 
     case 'draw': {
-      drawCards(d, idx, 1, events);
+      if (!d.rules.drawUntilPlayable) {
+        drawCards(d, idx, 1, events);
+      } else {
+        // Keep drawing until something is playable. Bounded by the hand limit
+        // as well as a hard cap: with an exhausted deck or a pathological
+        // rule set this could otherwise never terminate.
+        let guard = 0;
+        for (;;) {
+          const got = drawCards(d, idx, 1, events);
+          if (got === 0) break; // deck exhausted
+          const player = d.players[idx]!;
+          const drawn = player.hand[player.hand.length - 1]!;
+          if (canPlay(d as unknown as GameState, drawn)) break;
+          if (player.hand.length >= d.rules.handLimit) break;
+          if (++guard > 200) break;
+        }
+      }
       applyMercy(d, events);
       advance(d, events);
       break;

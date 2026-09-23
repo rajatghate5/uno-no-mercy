@@ -8,7 +8,14 @@
 
 import { COLORS, type Color, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
-import { HOUSE_RULE_LIMITS, type ChatMessage, type HouseRules, type LobbyPlayer, type RoomSettings } from '@uno/protocol';
+import {
+  HOUSE_RULE_LIMITS,
+  type BotSpeed,
+  type ChatMessage,
+  type HouseRules,
+  type LobbyPlayer,
+  type RoomSettings,
+} from '@uno/protocol';
 import { CARD_COLORS } from '../scene/cardArt.js';
 import type { LogEntry } from '../game/narrate.js';
 import type { Stats } from '../game/store.js';
@@ -84,30 +91,44 @@ export class Screens {
       const needsSeats = mode === 'host';
 
       const online = (m: typeof mode) => m !== 'solo';
-      const modeBtn = (m: typeof mode, label: string) => {
+
+      /**
+       * Each mode is a card that says what it does.
+       *
+       * The previous row of four bare words made the reader guess at the
+       * difference between "Host" and "Join", and gave a disabled button no
+       * way to explain itself.
+       */
+      const modeCard = (m: typeof mode, label: string, blurb: string) => {
         // Online modes stay VISIBLE but disabled when no server is reachable.
-        // Hiding them just raises the question "where did they go?" - which is
-        // exactly what happened the first time this shipped.
+        // Hiding them just raises the question "where did they go?".
         const blocked = online(m) && !opts.multiplayer;
-        return el('button', {
-          'aria-pressed': mode === m,
-          disabled: blocked,
-          title: blocked ? 'Needs a game server — see the note below' : undefined,
-          text: label,
-          onClick: () => {
-            if (blocked) return;
-            mode = m;
-            render();
+        return el(
+          'button',
+          {
+            class: 'mode-card',
+            'aria-pressed': mode === m,
+            disabled: blocked,
+            title: blocked ? 'Needs a game server — see the note below' : undefined,
+            onClick: () => {
+              if (blocked) return;
+              mode = m;
+              render();
+            },
           },
-        });
+          [
+            el('span', { class: 'mode-name', text: label }),
+            el('span', { class: 'mode-blurb', text: blurb }),
+          ],
+        );
       };
 
       const body: Node[] = [
-        el('div', { class: 'seg' }, [
-          modeBtn('solo', 'Vs bots'),
-          modeBtn('host', 'Host a game'),
-          modeBtn('join', 'Join a game'),
-          modeBtn('spectate', 'Spectate'),
+        el('div', { class: 'mode-grid' }, [
+          modeCard('solo', 'Play vs bots', 'Offline. Start immediately.'),
+          modeCard('host', 'Host a game', 'Open a table, share a code.'),
+          modeCard('join', 'Join a game', "Enter a friend's code."),
+          modeCard('spectate', 'Spectate', 'Watch without playing.'),
         ]),
       ];
 
@@ -128,7 +149,8 @@ export class Screens {
 
       if (needsBots) {
         body.push(
-          el('div', { class: 'rows' }, [
+          el('div', { class: 'section' }, [
+            el('h3', { class: 'section-title', text: 'Game setup' }),
             el('div', { class: 'row' }, [
               el('label', { text: 'Opponents' }),
               el('div', { class: 'stepper' }, [
@@ -175,7 +197,8 @@ export class Screens {
 
       if (needsSeats) {
         body.push(
-          el('div', { class: 'rows' }, [
+          el('div', { class: 'section' }, [
+            el('h3', { class: 'section-title', text: 'Your table' }),
             el('div', { class: 'row' }, [
               el('label', { text: 'Table size' }),
               el('div', { class: 'stepper' }, [
@@ -209,20 +232,30 @@ export class Screens {
       if (needsCode) {
         const input = el('input', {
           type: 'text',
-          placeholder: 'Room code, e.g. K7QM',
+          class: 'code-input',
+          placeholder: 'K7QM',
           maxlength: 4,
+          autocomplete: 'off',
+          autocapitalize: 'characters',
+          spellcheck: 'false',
           value: code,
           onInput: (e) => {
             code = (e.target as HTMLInputElement).value.toUpperCase();
             (e.target as HTMLInputElement).value = code;
           },
         });
-        body.push(el('div', { class: 'rows' }, [input]));
+        body.push(
+          el('div', { class: 'section' }, [
+            el('h3', { class: 'section-title', text: 'Room code' }),
+            input,
+          ]),
+        );
       }
 
       if (needsName) {
         body.push(
-          el('div', { class: 'rows' }, [
+          el('div', { class: 'section' }, [
+            el('h3', { class: 'section-title', text: 'You' }),
             el('input', {
               type: 'text',
               placeholder: 'Your name',
@@ -232,10 +265,7 @@ export class Screens {
                 name = (e.target as HTMLInputElement).value;
               },
             }),
-            el('p', {
-              class: 'hint',
-              text: `Server: ${opts.serverUrl}`,
-            }),
+            el('p', { class: 'hint', text: `Server: ${opts.serverUrl}` }),
           ]),
         );
       }
@@ -273,11 +303,13 @@ export class Screens {
       );
 
       this.panel(
-        el('h1', { html: "UNO <span class='mercy'>No Mercy</span>" }),
-        el('p', {
-          class: 'sub',
-          text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
-        }),
+        el('header', { class: 'masthead' }, [
+          el('h1', { html: "UNO <span class='mercy'>No Mercy</span>" }),
+          el('p', {
+            class: 'sub',
+            text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
+          }),
+        ]),
         ...body,
       );
     };
@@ -390,12 +422,13 @@ export class Screens {
       if (opts.isHost) {
         controls.push(
           houseRuleControls(
-            rules,
+            opts.settings!,
             this.advancedOpen,
             (open) => {
               this.advancedOpen = open;
             },
             (patch) => opts.onSettings({ rules: { ...rules, ...patch } }),
+            (patch) => opts.onSettings(patch),
           ),
         );
       } else {
@@ -518,11 +551,14 @@ export class Screens {
  * toggles between "create room" and "deal" is noise for them.
  */
 function houseRuleControls(
-  rules: HouseRules,
+  settings: RoomSettings,
   open: boolean,
   onToggleOpen: (open: boolean) => void,
-  onChange: (patch: Partial<HouseRules>) => void,
+  onRules: (patch: Partial<HouseRules>) => void,
+  onSettings: (patch: Partial<RoomSettings>) => void,
 ): HTMLElement {
+  const rules = settings.rules;
+
   const stepper = (
     label: string,
     value: number,
@@ -538,24 +574,19 @@ function houseRuleControls(
           text: '−',
           'aria-label': `Decrease ${label}`,
           disabled: value <= lo,
-          onClick: () => onChange({ [key]: value - 1 } as Partial<HouseRules>),
+          onClick: () => onRules({ [key]: value - 1 } as Partial<HouseRules>),
         }),
         el('span', { class: 'value', text: `${value} ${suffix}` }),
         el('button', {
           text: '+',
           'aria-label': `Increase ${label}`,
           disabled: value >= hi,
-          onClick: () => onChange({ [key]: value + 1 } as Partial<HouseRules>),
+          onClick: () => onRules({ [key]: value + 1 } as Partial<HouseRules>),
         }),
       ]),
     ]);
 
-  const toggle = (
-    label: string,
-    hint: string,
-    value: boolean,
-    key: 'stacking' | 'sevenSwap' | 'zeroPass',
-  ) =>
+  const toggle = (label: string, hint: string, value: boolean, onFlip: () => void) =>
     el('div', { class: 'row toggle-row' }, [
       el('div', { class: 'toggle-label' }, [
         el('label', { text: label }),
@@ -565,34 +596,115 @@ function houseRuleControls(
         class: value ? 'toggle on' : 'toggle',
         'aria-pressed': value,
         text: value ? 'On' : 'Off',
-        onClick: () => onChange({ [key]: !value } as Partial<HouseRules>),
+        onClick: onFlip,
       }),
     ]);
 
-  const body = el('div', { class: 'rows advanced-body' }, [
-    stepper(
-      'Starting hand',
-      rules.startingHand,
-      'cards',
-      HOUSE_RULE_LIMITS.startingHand.min,
-      HOUSE_RULE_LIMITS.startingHand.max,
-      'startingHand',
-    ),
-    stepper(
-      'Mercy Rule at',
-      rules.handLimit,
-      'cards',
-      Math.max(HOUSE_RULE_LIMITS.handLimit.min, rules.startingHand + 3),
-      HOUSE_RULE_LIMITS.handLimit.max,
-      'handLimit',
-    ),
-    toggle('Stacking', 'Answer a +2 with a +4, and keep it going', rules.stacking, 'stacking'),
-    toggle('7s swap hands', 'Play a 7, take someone else\'s hand', rules.sevenSwap, 'sevenSwap'),
-    toggle('0s pass hands', 'Play a 0, everyone shifts their hand along', rules.zeroPass, 'zeroPass'),
+  const choice = <T extends string>(
+    label: string,
+    hint: string,
+    options: { value: T; label: string }[],
+    current: T,
+    onPick: (v: T) => void,
+  ) =>
+    el('div', { class: 'row toggle-row' }, [
+      el('div', { class: 'toggle-label' }, [
+        el('label', { text: label }),
+        el('span', { class: 'hint', text: hint }),
+      ]),
+      el(
+        'div',
+        { class: 'seg' },
+        options.map((o) =>
+          el('button', {
+            'aria-pressed': current === o.value,
+            text: o.label,
+            onClick: () => onPick(o.value),
+          }),
+        ),
+      ),
+    ]);
+
+  const group = (title: string, children: Node[]) =>
+    el('div', { class: 'rule-group' }, [el('h3', { text: title }), ...children]);
+
+  const body = el('div', { class: 'advanced-body' }, [
+    group('The deal', [
+      stepper(
+        'Starting hand',
+        rules.startingHand,
+        'cards',
+        HOUSE_RULE_LIMITS.startingHand.min,
+        HOUSE_RULE_LIMITS.startingHand.max,
+        'startingHand',
+      ),
+      stepper(
+        'Mercy Rule at',
+        rules.handLimit,
+        'cards',
+        Math.max(HOUSE_RULE_LIMITS.handLimit.min, rules.startingHand + 3),
+        HOUSE_RULE_LIMITS.handLimit.max,
+        'handLimit',
+      ),
+    ]),
+
+    group('Mechanics', [
+      toggle('Stacking', 'Answer a draw card instead of eating it', rules.stacking, () =>
+        onRules({ stacking: !rules.stacking }),
+      ),
+      ...(rules.stacking
+        ? [
+            choice(
+              'Stack rule',
+              rules.stackMode === 'escalating'
+                ? 'Must play equal or higher — the real No Mercy rule'
+                : 'Any draw card answers any other — far more survivable',
+              [
+                { value: 'escalating' as const, label: 'Escalating' },
+                { value: 'any' as const, label: 'Any' },
+              ],
+              rules.stackMode,
+              (v) => onRules({ stackMode: v }),
+            ),
+          ]
+        : []),
+      toggle('7s swap hands', "Play a 7, take someone else's hand", rules.sevenSwap, () =>
+        onRules({ sevenSwap: !rules.sevenSwap }),
+      ),
+      toggle('0s pass hands', 'Play a 0, everyone shifts their hand along', rules.zeroPass, () =>
+        onRules({ zeroPass: !rules.zeroPass }),
+      ),
+      toggle(
+        'Draw until playable',
+        'Keep drawing until you get something you can play',
+        rules.drawUntilPlayable,
+        () => onRules({ drawUntilPlayable: !rules.drawUntilPlayable }),
+      ),
+    ]),
+
+    group('Table', [
+      choice(
+        'Bot speed',
+        'How long bots pause before playing',
+        [
+          { value: 'fast' as const, label: 'Fast' },
+          { value: 'normal' as const, label: 'Normal' },
+          { value: 'slow' as const, label: 'Slow' },
+        ],
+        settings.botSpeed,
+        (v: BotSpeed) => onSettings({ botSpeed: v }),
+      ),
+      toggle(
+        'Allow spectators',
+        'Anyone with the code can watch without playing',
+        settings.allowSpectators,
+        () => onSettings({ allowSpectators: !settings.allowSpectators }),
+      ),
+    ]),
   ]);
 
   const panel = el('details', { class: 'advanced' }, [
-    el('summary', { text: 'House rules' }),
+    el('summary', { text: 'Advanced setup' }),
     body,
   ]) as HTMLDetailsElement;
   panel.open = open;
@@ -604,8 +716,10 @@ function houseRuleControls(
 export function houseRuleSummary(rules: HouseRules): string {
   const parts: string[] = [`${rules.startingHand} cards`, `out at ${rules.handLimit}`];
   if (!rules.stacking) parts.push('no stacking');
+  else if (rules.stackMode === 'any') parts.push('any-card stacking');
   if (!rules.sevenSwap) parts.push('no 7-swaps');
   if (!rules.zeroPass) parts.push('no 0-passes');
+  if (rules.drawUntilPlayable) parts.push('draw until playable');
   return parts.join(' · ');
 }
 

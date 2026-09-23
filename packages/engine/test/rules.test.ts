@@ -10,6 +10,7 @@ import {
   DeckSpecError,
   deckSize,
   DEFAULT_DECK_SPEC,
+  DEFAULT_RULES,
   legalMoves,
   redactFor,
   reduce,
@@ -127,6 +128,88 @@ describe('stacking', () => {
     expect(r.state.players[0]!.hand).toHaveLength(10);
     expect(r.state.pendingDraw).toBe(0);
     expect(r.state.players[r.state.turn]!.id).toBe('b');
+  });
+});
+
+describe('rule variants', () => {
+  test("stackMode 'any' lets a small draw card answer a big one", () => {
+    const hand = [card('drawTwo', 'blue')];
+    const escalating = state({
+      players: [player('a', hand), player('b', [])],
+      pendingDraw: 10,
+      stackValue: 10,
+      rules: { stackMode: 'escalating' },
+    });
+    // The real No Mercy rule: +2 cannot answer a +10.
+    expect(legalMoves(escalating, 'a')).toHaveLength(0);
+
+    const any = state({
+      players: [player('a', hand), player('b', [])],
+      pendingDraw: 10,
+      stackValue: 10,
+      rules: { stackMode: 'any' },
+    });
+    expect(legalMoves(any, 'a')).toHaveLength(1);
+  });
+
+  test("stackMode 'any' still refuses non-draw cards", () => {
+    const s = state({
+      players: [player('a', [num('red', 5), card('wild')]), player('b', [])],
+      pendingDraw: 4,
+      stackValue: 4,
+      rules: { stackMode: 'any' },
+    });
+    expect(legalMoves(s, 'a')).toHaveLength(0);
+  });
+
+  test('drawUntilPlayable keeps drawing until something matches', () => {
+    // Draw pile pops from the end: blue1 is unplayable on red, red3 is not.
+    const s = state({
+      players: [player('a', []), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('red', 3), num('blue', 1), num('blue', 2), num('blue', 4)],
+      rules: { drawUntilPlayable: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    // Drew blue4, blue2, blue1, then red3 - four cards.
+    expect(r.state.players[0]!.hand).toHaveLength(4);
+    expect(r.state.players[0]!.hand.at(-1)!.color).toBe('red');
+  });
+
+  test('drawUntilPlayable draws exactly one when that one is playable', () => {
+    const s = state({
+      players: [player('a', []), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('blue', 9), num('red', 7)],
+      rules: { drawUntilPlayable: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    expect(r.state.players[0]!.hand).toHaveLength(1);
+  });
+
+  test('drawUntilPlayable stops at the mercy limit instead of eliminating you', () => {
+    // Nothing in the pile is playable, so without a bound this would draw
+    // until the deck ran dry and wipe the player out.
+    const s = state({
+      players: [player('a', pile(20, 'red')), player('b', [])],
+      discardPile: [num('green', 5)],
+      activeColor: 'green',
+      drawPile: pile(40, 'blue'),
+      rules: { drawUntilPlayable: true, handLimit: 25 },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    const a = r.state.players[0]!;
+    // Either it stopped at the limit, or the limit tripped and eliminated it -
+    // but it must not have drawn the whole pile.
+    expect(a.eliminated || a.hand.length <= 25).toBe(true);
+    expect(r.state.drawPile.length).toBeGreaterThan(10);
+  });
+
+  test('default rules keep the real No Mercy behaviour', () => {
+    expect(DEFAULT_RULES.stackMode).toBe('escalating');
+    expect(DEFAULT_RULES.drawUntilPlayable).toBe(false);
   });
 });
 

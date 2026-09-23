@@ -21,15 +21,31 @@ Requires [Bun](https://bun.sh) 1.4+ (`curl -fsSL https://bun.sh/install | bash`)
 **Host a game** gives you a room code and an empty table. People join with the
 code; bots are an optional top-up for seats nobody takes, not the default.
 
-The lobby's **House rules** panel changes the game before you deal:
+The lobby's **Advanced setup** panel changes the game before you deal:
+
+**The deal**
 
 | Setting | Default | Range |
 |---|---|---|
 | Starting hand | 7 cards | 3–12 |
 | Mercy Rule at | 25 cards | 10–60, always above the deal |
-| Stacking | on | — |
-| 7s swap hands | on | — |
-| 0s pass hands | on | — |
+
+**Mechanics**
+
+| Setting | Default | Effect |
+|---|---|---|
+| Stacking | on | Answer a draw card instead of eating it |
+| Stack rule | escalating | `escalating` is the real rule — equal or higher only. `any` lets a `+2` answer a `+10`, which makes stacks survivable and sharply cuts eliminations |
+| 7s swap hands | on | Play a 7, take someone's hand |
+| 0s pass hands | on | Play a 0, everyone shifts along |
+| Draw until playable | off | Keep drawing until something matches, rather than drawing one and passing |
+
+**Table**
+
+| Setting | Default | Effect |
+|---|---|---|
+| Bot speed | normal | fast 300ms / normal 700ms / slow 1400ms. Presentation only — changes no outcome |
+| Allow spectators | on | Whether people with the code can watch without playing |
 
 Everything is re-clamped server-side on every change — the values arrive from a
 client and are not trusted. A Mercy limit at or below the starting hand would
@@ -247,7 +263,7 @@ see `resolveServer()`.
 ## Development
 
 ```bash
-bun test              # 104 tests
+bun test              # 110 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups

@@ -60,6 +60,7 @@ export function viewOfRedacted(s: RedactedState): PlayView {
     stackValue: s.stackValue,
     activeColor: s.activeColor,
     stackingEnabled: s.rules.stackingEnabled,
+    stackMode: s.rules.stackMode,
     discardTop: s.discardTop,
   };
 }
