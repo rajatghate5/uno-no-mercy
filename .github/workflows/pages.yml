@@ -47,7 +47,12 @@ jobs:
           VITE_UNO_SERVER: ${{ vars.UNO_SERVER }}
         run: bun run build
 
+      # enablement: true turns Pages on if it is off. Without it this step
+      # fails with a bare "Not Found" on a repo where nobody has visited
+      # Settings -> Pages yet, which is every freshly cloned fork.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
