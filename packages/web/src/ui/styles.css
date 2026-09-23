@@ -343,6 +343,49 @@ h2 {
 }
 .chat .messages .who { color: var(--violet); font-weight: 600; }
 
+/* ---------- advanced host settings ---------- */
+.advanced {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+}
+.advanced > summary {
+  cursor: pointer;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  font-weight: 600;
+  list-style: none;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::before {
+  content: '▸';
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+.advanced[open] > summary::before { transform: rotate(90deg); }
+.advanced > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.advanced-body { padding: 4px 13px 13px; }
+
+.toggle-row { align-items: flex-start; }
+.toggle-label { display: flex; flex-direction: column; gap: 1px; }
+.toggle-label .hint { font-size: 11.5px; }
+
+button.toggle {
+  min-width: 58px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+button.toggle.on {
+  border-color: var(--good);
+  color: #7ee2a0;
+  background: #1ea34a1a;
+}
+
 /* ---------- stats ---------- */
 .stat-grid {
   display: grid;
@@ -375,6 +418,11 @@ h2 {
   font-size: 13.5px;
 }
 .players .tag { font-size: 11.5px; color: var(--muted); }
+.players .empty-seat {
+  border-style: dashed;
+  color: var(--muted);
+  background: transparent;
+}
 
 .code-display {
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;

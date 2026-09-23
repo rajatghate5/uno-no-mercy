@@ -159,7 +159,18 @@ export class Room {
     }
 
     const specs: PlayerSpec[] = this.seats.map((s) => ({ id: s.id, name: s.name, isBot: s.isBot }));
-    const created = createGame({ seed: this.seed, players: specs });
+    const house = this.settings.rules;
+    const created = createGame({
+      seed: this.seed,
+      players: specs,
+      rules: {
+        startingHand: house.startingHand,
+        handLimit: house.handLimit,
+        stackingEnabled: house.stacking,
+        sevenSwapsHands: house.sevenSwap,
+        zeroPassesHands: house.zeroPass,
+      },
+    });
     this.state = created.state;
     this.recorder = new ReplayRecorder(this.seed, specs);
     this.started = true;

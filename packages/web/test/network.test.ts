@@ -7,6 +7,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { decide, emptyMemory } from '@uno/bots';
+import { DEFAULT_HOUSE_RULES } from '@uno/protocol';
 import { createServer } from '../../server/src/server.js';
 import { NetworkGame } from '../src/game/network.js';
 
@@ -34,7 +35,7 @@ describe('network client', () => {
     const host = new NetworkGame({
       url,
       name: 'host',
-      mode: { kind: 'create', settings: { botCount: 2, difficulty: 'medium', maxPlayers: 4 } },
+      mode: { kind: 'create', settings: { botCount: 2, difficulty: 'medium', maxPlayers: 4, rules: DEFAULT_HOUSE_RULES } },
     });
 
     await until(() => host.status === 'lobby' && host.code.length === 4);
@@ -56,7 +57,7 @@ describe('network client', () => {
     const host = new NetworkGame({
       url,
       name: 'alice',
-      mode: { kind: 'create', settings: { botCount: 0, difficulty: 'easy', maxPlayers: 4 } },
+      mode: { kind: 'create', settings: { botCount: 0, difficulty: 'easy', maxPlayers: 4, rules: DEFAULT_HOUSE_RULES } },
     });
     await until(() => host.status === 'lobby' && !!host.code);
 
@@ -75,7 +76,7 @@ describe('network client', () => {
     const host = new NetworkGame({
       url,
       name: 'solo',
-      mode: { kind: 'create', settings: { botCount: 3, difficulty: 'medium', maxPlayers: 4 } },
+      mode: { kind: 'create', settings: { botCount: 3, difficulty: 'medium', maxPlayers: 4, rules: DEFAULT_HOUSE_RULES } },
     });
     await until(() => host.status === 'lobby' && !!host.code);
     host.start();
@@ -102,7 +103,7 @@ describe('network client', () => {
     const host = new NetworkGame({
       url,
       name: 'player',
-      mode: { kind: 'create', settings: { botCount: 1, difficulty: 'easy', maxPlayers: 4 } },
+      mode: { kind: 'create', settings: { botCount: 1, difficulty: 'easy', maxPlayers: 4, rules: DEFAULT_HOUSE_RULES } },
     });
     await until(() => host.status === 'lobby' && !!host.code);
     host.start();

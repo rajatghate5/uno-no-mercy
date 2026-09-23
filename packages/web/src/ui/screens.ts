@@ -8,7 +8,7 @@
 
 import { COLORS, type Color, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
-import type { ChatMessage, LobbyPlayer, RoomSettings } from '@uno/protocol';
+import { HOUSE_RULE_LIMITS, type ChatMessage, type HouseRules, type LobbyPlayer, type RoomSettings } from '@uno/protocol';
 import { CARD_COLORS } from '../scene/cardArt.js';
 import type { LogEntry } from '../game/narrate.js';
 import type { Stats } from '../game/store.js';
@@ -23,11 +23,20 @@ const BLURB: Record<Difficulty, string> = {
 
 export type MenuChoice =
   | { kind: 'solo'; bots: number; difficulty: Difficulty }
-  | { kind: 'host'; bots: number; difficulty: Difficulty; name: string }
+  | { kind: 'host'; bots: number; difficulty: Difficulty; name: string; seats: number }
   | { kind: 'join'; code: string; name: string }
   | { kind: 'spectate'; code: string; name: string };
 
 export class Screens {
+  /**
+   * Whether the house-rules disclosure is open.
+   *
+   * Held on the instance because the lobby is rebuilt from scratch every time
+   * the server broadcasts settings - which is on every toggle. Without this,
+   * changing a rule collapses the panel you are working in.
+   */
+  private advancedOpen = false;
+
   constructor(private readonly root: HTMLElement) {}
 
   private panel(...children: (Node | string)[]): HTMLElement {
@@ -57,6 +66,9 @@ export class Screens {
     multiplayer: boolean;
   }): void {
     let bots = 3;
+    // Hosting starts with NO bots. You are opening a table for people; bots
+    // are something you add afterwards if seats go unfilled.
+    let hostSeats = 4;
     let difficulty: Difficulty = 'medium';
     let name = opts.defaultName;
     let code = '';
@@ -65,7 +77,11 @@ export class Screens {
     const render = () => {
       const needsName = mode !== 'solo';
       const needsCode = mode === 'join' || mode === 'spectate';
-      const needsBots = mode === 'solo' || mode === 'host';
+      // Bot count and difficulty only make sense when you ARE the opposition
+      // setup - i.e. a solo game. Hosting configures those in the lobby, once
+      // you can see who actually turned up.
+      const needsBots = mode === 'solo';
+      const needsSeats = mode === 'host';
 
       const online = (m: typeof mode) => m !== 'solo';
       const modeBtn = (m: typeof mode, label: string) => {
@@ -157,6 +173,39 @@ export class Screens {
         );
       }
 
+      if (needsSeats) {
+        body.push(
+          el('div', { class: 'rows' }, [
+            el('div', { class: 'row' }, [
+              el('label', { text: 'Table size' }),
+              el('div', { class: 'stepper' }, [
+                el('button', {
+                  text: '−',
+                  'aria-label': 'Smaller table',
+                  onClick: () => {
+                    hostSeats = Math.max(2, hostSeats - 1);
+                    render();
+                  },
+                }),
+                el('span', { class: 'value', text: `${hostSeats} seats` }),
+                el('button', {
+                  text: '+',
+                  'aria-label': 'Bigger table',
+                  onClick: () => {
+                    hostSeats = Math.min(10, hostSeats + 1);
+                    render();
+                  },
+                }),
+              ]),
+            ]),
+            el('p', {
+              class: 'hint',
+              text: 'You get a room code to share. Add bots later if seats go unfilled.',
+            }),
+          ]),
+        );
+      }
+
       if (needsCode) {
         const input = el('input', {
           type: 'text',
@@ -195,7 +244,14 @@ export class Screens {
         if (mode === 'solo') return opts.onChoose({ kind: 'solo', bots, difficulty });
         const trimmed = name.trim() || opts.defaultName;
         if (mode === 'host') {
-          return opts.onChoose({ kind: 'host', bots, difficulty, name: trimmed });
+          // Zero bots: the host opens a table for people, then tops it up.
+          return opts.onChoose({
+            kind: 'host',
+            bots: 0,
+            difficulty,
+            name: trimmed,
+            seats: hostSeats,
+          });
         }
         if (code.length !== 4) return;
         opts.onChoose(
@@ -263,49 +319,89 @@ export class Screens {
       return;
     }
 
+    const humans = opts.players.filter((p) => !p.isBot);
+    const seats = opts.settings?.maxPlayers ?? 6;
     const rows = opts.players.map((p) =>
       el('div', {}, [
         el('span', { text: p.name + (p.id === opts.youId ? '  (you)' : '') }),
         el('span', {
           class: 'tag',
-          text: [p.isHost ? 'host' : null, p.connected ? null : 'away'].filter(Boolean).join(' · '),
+          text: [p.isBot ? 'bot' : null, p.isHost ? 'host' : null, p.connected ? null : 'away']
+            .filter(Boolean)
+            .join(' · '),
         }),
       ]),
     );
+    // Show the empty seats too, so "who else is coming" is visible at a glance.
+    for (let i = humans.length; i < seats; i++) {
+      rows.push(
+        el('div', { class: 'empty-seat' }, [
+          el('span', { text: 'empty seat' }),
+          el('span', { class: 'tag', text: 'waiting' }),
+        ]),
+      );
+    }
 
     const controls: Node[] = [];
     if (opts.isHost && opts.settings) {
       const s = opts.settings;
       controls.push(
         el('div', { class: 'row' }, [
-          el('label', { text: 'Bots' }),
+          el('label', { text: 'Fill seats with bots' }),
           el('div', { class: 'stepper' }, [
             el('button', {
               text: '−',
               onClick: () => opts.onSettings({ botCount: Math.max(0, s.botCount - 1) }),
             }),
-            el('span', { class: 'value', text: String(s.botCount) }),
+            el('span', {
+              class: 'value',
+              text: s.botCount === 0 ? 'none' : `${s.botCount} bot${s.botCount === 1 ? '' : 's'}`,
+            }),
             el('button', {
               text: '+',
               onClick: () => opts.onSettings({ botCount: Math.min(9, s.botCount + 1) }),
             }),
           ]),
         ]),
-        el('div', { class: 'row' }, [
-          el('label', { text: 'Difficulty' }),
-          el(
-            'div',
-            { class: 'seg' },
-            DIFFICULTIES.map((d) =>
-              el('button', {
-                'aria-pressed': s.difficulty === d,
-                text: d,
-                onClick: () => opts.onSettings({ difficulty: d }),
-              }),
-            ),
-          ),
-        ]),
       );
+      // Difficulty is meaningless with no bots on the table.
+      if (s.botCount > 0) {
+        controls.push(
+          el('div', { class: 'row' }, [
+            el('label', { text: 'Bot difficulty' }),
+            el(
+              'div',
+              { class: 'seg' },
+              DIFFICULTIES.map((d) =>
+                el('button', {
+                  'aria-pressed': s.difficulty === d,
+                  text: d,
+                  onClick: () => opts.onSettings({ difficulty: d }),
+                }),
+              ),
+            ),
+          ]),
+        );
+      }
+    }
+
+    const rules = opts.settings?.rules;
+    if (rules) {
+      if (opts.isHost) {
+        controls.push(
+          houseRuleControls(
+            rules,
+            this.advancedOpen,
+            (open) => {
+              this.advancedOpen = open;
+            },
+            (patch) => opts.onSettings({ rules: { ...rules, ...patch } }),
+          ),
+        );
+      } else {
+        // Joiners cannot change the rules but must be able to see them.
+        controls.push(el('p', { class: 'hint', text: `House rules: ${houseRuleSummary(rules)}` }));
+      }
     }
 
     this.panel(
@@ -317,14 +413,22 @@ export class Screens {
           ? 'Read that code out. Everyone else picks "Join a game" and types it.'
           : 'Waiting for the host to deal.',
       }),
+      el('p', {
+        class: 'hint',
+        text: `${humans.length} of ${seats} seat${seats === 1 ? '' : 's'} taken`,
+      }),
       el('div', { class: 'players' }, rows),
       ...controls,
       el('div', { class: 'actions' }, [
         opts.isHost
           ? el('button', {
               class: 'primary',
-              text: 'Deal',
-              disabled: opts.players.length === 0,
+              // One human and no bots is not a game; say so on the button.
+              text:
+                humans.length + (opts.settings?.botCount ?? 0) < 2
+                  ? 'Waiting for players…'
+                  : 'Deal',
+              disabled: humans.length + (opts.settings?.botCount ?? 0) < 2,
               onClick: opts.onStart,
             })
           : el('button', { text: 'Waiting…', disabled: true }),
@@ -405,6 +509,104 @@ export class Screens {
       ]),
     );
   }
+}
+
+/**
+ * House-rule controls for the host.
+ *
+ * Collapsed by default: most tables play the standard rules, and a wall of
+ * toggles between "create room" and "deal" is noise for them.
+ */
+function houseRuleControls(
+  rules: HouseRules,
+  open: boolean,
+  onToggleOpen: (open: boolean) => void,
+  onChange: (patch: Partial<HouseRules>) => void,
+): HTMLElement {
+  const stepper = (
+    label: string,
+    value: number,
+    suffix: string,
+    lo: number,
+    hi: number,
+    key: 'startingHand' | 'handLimit',
+  ) =>
+    el('div', { class: 'row' }, [
+      el('label', { text: label }),
+      el('div', { class: 'stepper' }, [
+        el('button', {
+          text: '−',
+          'aria-label': `Decrease ${label}`,
+          disabled: value <= lo,
+          onClick: () => onChange({ [key]: value - 1 } as Partial<HouseRules>),
+        }),
+        el('span', { class: 'value', text: `${value} ${suffix}` }),
+        el('button', {
+          text: '+',
+          'aria-label': `Increase ${label}`,
+          disabled: value >= hi,
+          onClick: () => onChange({ [key]: value + 1 } as Partial<HouseRules>),
+        }),
+      ]),
+    ]);
+
+  const toggle = (
+    label: string,
+    hint: string,
+    value: boolean,
+    key: 'stacking' | 'sevenSwap' | 'zeroPass',
+  ) =>
+    el('div', { class: 'row toggle-row' }, [
+      el('div', { class: 'toggle-label' }, [
+        el('label', { text: label }),
+        el('span', { class: 'hint', text: hint }),
+      ]),
+      el('button', {
+        class: value ? 'toggle on' : 'toggle',
+        'aria-pressed': value,
+        text: value ? 'On' : 'Off',
+        onClick: () => onChange({ [key]: !value } as Partial<HouseRules>),
+      }),
+    ]);
+
+  const body = el('div', { class: 'rows advanced-body' }, [
+    stepper(
+      'Starting hand',
+      rules.startingHand,
+      'cards',
+      HOUSE_RULE_LIMITS.startingHand.min,
+      HOUSE_RULE_LIMITS.startingHand.max,
+      'startingHand',
+    ),
+    stepper(
+      'Mercy Rule at',
+      rules.handLimit,
+      'cards',
+      Math.max(HOUSE_RULE_LIMITS.handLimit.min, rules.startingHand + 3),
+      HOUSE_RULE_LIMITS.handLimit.max,
+      'handLimit',
+    ),
+    toggle('Stacking', 'Answer a +2 with a +4, and keep it going', rules.stacking, 'stacking'),
+    toggle('7s swap hands', 'Play a 7, take someone else\'s hand', rules.sevenSwap, 'sevenSwap'),
+    toggle('0s pass hands', 'Play a 0, everyone shifts their hand along', rules.zeroPass, 'zeroPass'),
+  ]);
+
+  const panel = el('details', { class: 'advanced' }, [
+    el('summary', { text: 'House rules' }),
+    body,
+  ]) as HTMLDetailsElement;
+  panel.open = open;
+  panel.addEventListener('toggle', () => onToggleOpen(panel.open));
+  return panel;
+}
+
+/** One-line summary of any non-standard rules, for players who cannot edit. */
+export function houseRuleSummary(rules: HouseRules): string {
+  const parts: string[] = [`${rules.startingHand} cards`, `out at ${rules.handLimit}`];
+  if (!rules.stacking) parts.push('no stacking');
+  if (!rules.sevenSwap) parts.push('no 7-swaps');
+  if (!rules.zeroPass) parts.push('no 0-passes');
+  return parts.join(' · ');
 }
 
 function stat(k: string, v: string): HTMLElement {

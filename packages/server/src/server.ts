@@ -12,9 +12,11 @@
 
 import type { ServerWebSocket } from 'bun';
 import {
+  DEFAULT_HOUSE_RULES,
   MAX_PLAYERS,
   PROTOCOL_VERSION,
   cleanChat,
+  cleanHouseRules,
   cleanName,
   parseClientMessage,
   type ClientMessage,
@@ -46,7 +48,12 @@ const EMPTY_ROOM_TTL_MS = 5 * 60 * 1000;
 const RATE_LIMIT_MSGS = 40;
 const RATE_LIMIT_WINDOW_MS = 5000;
 
-const DEFAULT_SETTINGS: RoomSettings = { botCount: 2, difficulty: 'medium', maxPlayers: 6 };
+const DEFAULT_SETTINGS: RoomSettings = {
+  botCount: 0,
+  difficulty: 'medium',
+  maxPlayers: 6,
+  rules: DEFAULT_HOUSE_RULES,
+};
 
 export interface ServerOptions {
   port?: number;
@@ -163,6 +170,7 @@ export function createServer(opts: ServerOptions = {}) {
           ...msg.settings,
           botCount: clamp(msg.settings?.botCount ?? DEFAULT_SETTINGS.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? DEFAULT_SETTINGS.maxPlayers, 2, MAX_PLAYERS),
+          rules: cleanHouseRules(msg.settings?.rules),
         };
         const room = new Room(
           code,
@@ -269,6 +277,8 @@ export function createServer(opts: ServerOptions = {}) {
           ...msg.settings,
           botCount: clamp(msg.settings?.botCount ?? room.settings.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? room.settings.maxPlayers, 2, MAX_PLAYERS),
+          // Re-clamped on every change: a client can send anything.
+          rules: cleanHouseRules(msg.settings?.rules ?? room.settings.rules),
         };
         room.broadcastLobby();
         return;

@@ -16,10 +16,77 @@ export const PROTOCOL_VERSION = 1;
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1
 export const CODE_LENGTH = 4;
 
+/**
+ * House rules a host can change before dealing.
+ *
+ * A subset of the engine's RuleConfig - only the parts that make sense as a
+ * table setting. Everything here is clamped server-side: it arrives from a
+ * client and must not be trusted.
+ */
+export interface HouseRules {
+  /** Cards dealt to each player. */
+  startingHand: number;
+  /** Mercy Rule threshold. Reach this many cards and you are out. */
+  handLimit: number;
+  /** Draw cards can be stacked onto an equal-or-lower draw card. */
+  stacking: boolean;
+  /** 7 swaps hands with a player of your choice. */
+  sevenSwap: boolean;
+  /** 0 passes every hand in the direction of play. */
+  zeroPass: boolean;
+}
+
+export const DEFAULT_HOUSE_RULES: HouseRules = {
+  startingHand: 7,
+  handLimit: 25,
+  stacking: true,
+  sevenSwap: true,
+  zeroPass: true,
+};
+
+/** Bounds enforced by the server. A hand limit below the deal is unplayable. */
+export const HOUSE_RULE_LIMITS = {
+  startingHand: { min: 3, max: 12 },
+  handLimit: { min: 10, max: 60 },
+} as const;
+
 export interface RoomSettings {
   botCount: number;
   difficulty: Difficulty;
   maxPlayers: number;
+  rules: HouseRules;
+}
+
+/** Clamp untrusted house rules into a playable range. */
+export function cleanHouseRules(raw: unknown): HouseRules {
+  const r = (raw ?? {}) as Partial<HouseRules>;
+  const num = (v: unknown, fallback: number, lo: number, hi: number) =>
+    typeof v === 'number' && Number.isFinite(v)
+      ? Math.max(lo, Math.min(hi, Math.floor(v)))
+      : fallback;
+  const bool = (v: unknown, fallback: boolean) => (typeof v === 'boolean' ? v : fallback);
+
+  const startingHand = num(
+    r.startingHand,
+    DEFAULT_HOUSE_RULES.startingHand,
+    HOUSE_RULE_LIMITS.startingHand.min,
+    HOUSE_RULE_LIMITS.startingHand.max,
+  );
+  const handLimit = num(
+    r.handLimit,
+    DEFAULT_HOUSE_RULES.handLimit,
+    HOUSE_RULE_LIMITS.handLimit.min,
+    HOUSE_RULE_LIMITS.handLimit.max,
+  );
+
+  return {
+    startingHand,
+    // A limit at or below the deal would eliminate everyone on the first turn.
+    handLimit: Math.max(handLimit, startingHand + 3),
+    stacking: bool(r.stacking, DEFAULT_HOUSE_RULES.stacking),
+    sevenSwap: bool(r.sevenSwap, DEFAULT_HOUSE_RULES.sevenSwap),
+    zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
+  };
 }
 
 export interface LobbyPlayer {

@@ -16,6 +16,26 @@ bun run dev          # http://localhost:5173
 
 Requires [Bun](https://bun.sh) 1.4+ (`curl -fsSL https://bun.sh/install | bash`).
 
+### Hosting
+
+**Host a game** gives you a room code and an empty table. People join with the
+code; bots are an optional top-up for seats nobody takes, not the default.
+
+The lobby's **House rules** panel changes the game before you deal:
+
+| Setting | Default | Range |
+|---|---|---|
+| Starting hand | 7 cards | 3–12 |
+| Mercy Rule at | 25 cards | 10–60, always above the deal |
+| Stacking | on | — |
+| 7s swap hands | on | — |
+| 0s pass hands | on | — |
+
+Everything is re-clamped server-side on every change — the values arrive from a
+client and are not trusted. A Mercy limit at or below the starting hand would
+eliminate the whole table on the first turn, so the server forces it higher.
+Players who join see the rules as a read-only summary.
+
 ### Playing with friends
 
 One machine runs the server:
@@ -227,7 +247,7 @@ see `resolveServer()`.
 ## Development
 
 ```bash
-bun test              # 96 tests
+bun test              # 104 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups
