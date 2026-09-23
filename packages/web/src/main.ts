@@ -34,8 +34,10 @@ import { Hud, Screens, type MenuChoice } from './ui/screens.js';
 // Where the multiplayer server lives, and whether one is reachable at all.
 const { url: SERVER_URL, multiplayer: MULTIPLAYER_AVAILABLE } = resolveServer({
   configured: import.meta.env.VITE_UNO_SERVER as string | undefined,
+  sameOrigin: import.meta.env.VITE_UNO_SAME_ORIGIN as string | undefined,
   protocol: location.protocol,
   hostname: location.hostname,
+  port: location.port,
 });
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;

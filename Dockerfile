@@ -19,6 +19,10 @@ RUN bun install --frozen-lockfile
 FROM deps AS build
 COPY tsconfig.json ./
 COPY packages ./packages
+# Declare that the server will also serve this page, so the client talks to
+# its own origin. Without it an HTTPS deploy is indistinguishable from a
+# static host and the client disables multiplayer.
+ENV VITE_UNO_SAME_ORIGIN=1
 RUN cd packages/web && bunx vite build
 
 # --- runtime ----------------------------------------------------------------

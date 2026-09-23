@@ -192,17 +192,32 @@ Variables. The next deploy picks it up.
 > address on Pages is the same as no server at all. `resolveServer()` treats it
 > that way on purpose, and `serverUrl.test.ts` pins the behaviour.
 
-### One container instead (game + client, one URL)
+### One container — game + client on one URL (recommended for multiplayer)
 
-The Dockerfile builds the client and serves it from the game server, so
-everything lives on one port. This is the simplest option if you want
-multiplayer without running two services.
+`render.yaml` is a Render Blueprint: **New → Blueprint → point at this repo**.
+One service runs the game server and serves the client, so multiplayer works on
+a single URL with nothing else to configure.
+
+The same image runs anywhere that takes a Dockerfile (Fly, Railway, a VPS):
+
+```bash
+docker compose up -d      # http://localhost:4040
+```
+
+The Docker build sets `VITE_UNO_SAME_ORIGIN=1`, which tells the client its
+socket lives at the page's own origin. Without that flag an HTTPS deploy is
+indistinguishable from a static host and the client disables multiplayer —
+see `resolveServer()`.
+
+> Render's free plan sleeps after 15 minutes idle, so the first visitor waits
+> ~50s for it to wake.
 
 ## Environment variables
 
 | Variable | Used by | Default | Notes |
 |----------|---------|---------|-------|
-| `VITE_UNO_SERVER` | client (build time) | `ws://<host>:4040` | Server address. Must be `wss://` if the page is served over HTTPS |
+| `VITE_UNO_SERVER` | client (build time) | — | Explicit server address. Must be `wss://` if the page is served over HTTPS |
+| `VITE_UNO_SAME_ORIGIN` | client (build time) | — | `1` when the game server also serves the page (set by the Dockerfile) |
 | `BASE_PATH` | client (build time) | `/` | Sub-path for project-site hosting, e.g. `/uno-no-mercy/` |
 | `PORT` | server | `4040` | Set automatically by most hosts |
 | `HOST` | server | `0.0.0.0` | Bind address |
@@ -212,7 +227,7 @@ multiplayer without running two services.
 ## Development
 
 ```bash
-bun test              # 94 tests
+bun test              # 96 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups

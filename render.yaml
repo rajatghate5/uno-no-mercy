@@ -1,0 +1,20 @@
+# Render Blueprint: one service running BOTH the game server and the web
+# client, so multiplayer works on a single URL.
+#
+# Deploy: render.com -> New -> Blueprint -> point at this repo.
+#
+# The free plan sleeps after 15 minutes of inactivity, so the first person to
+# open the link waits ~50s for it to wake. Fine for playing with friends;
+# upgrade to Starter if that annoys you.
+services:
+  - type: web
+    name: uno-no-mercy
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    envVars:
+      # Render injects PORT itself; the server reads it.
+      - key: UNO_BOT_DELAY_MS
+        value: "700"
