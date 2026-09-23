@@ -6,14 +6,13 @@
     "packages/*"
   ],
   "scripts": {
-    "play": "bun run packages/tui/src/main.tsx",
+    "dev": "bun --filter @uno/web dev",
+    "serve": "bun run packages/server/src/main.ts",
+    "build": "bun --filter @uno/web build",
     "test": "bun test",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/tui/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web/tsconfig.json",
     "sim": "bun run packages/engine/test/simulate.ts",
-    "bench": "bun run packages/engine/test/benchmark.ts",
-    "snapshot": "bun run packages/tui/test/snapshot.tsx",
-    "build": "bun run scripts/build.ts",
-    "serve": "bun run packages/server/src/main.ts"
+    "bench": "bun run packages/engine/test/benchmark.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

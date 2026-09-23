@@ -4,3 +4,4 @@ dist/
 replays/
 stats.db
 .artifact/
+packages/web/dist/

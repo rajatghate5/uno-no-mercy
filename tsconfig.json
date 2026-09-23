@@ -13,5 +13,8 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"]
+  // packages/web has its own tsconfig (it needs DOM libs); "bun run typecheck"
+  // runs both. Including it here would check browser code without lib.dom.
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"],
+  "exclude": ["node_modules", "packages/web"]
 }

@@ -1,11 +1,10 @@
-# Local LAN server, mirroring how this would run on a host like Render.
+# Local run that mirrors a real deployment: one container serving both the
+# game server and the built client.
 #
-# Start it with:   docker compose up -d
-# Then players on the same network connect with:
-#   UNO_SERVER=ws://<this-machine-ip>:4040 bun run play
+#   docker compose up -d   ->   http://localhost:4040
 services:
-  uno-server:
-    container_name: uno-server
+  uno:
+    container_name: uno-no-mercy
     build: .
     restart: unless-stopped
     environment:
@@ -13,7 +12,6 @@ services:
       # Bot think-time in ms. Lower feels snappier, higher is easier to follow.
       UNO_BOT_DELAY_MS: 700
     ports:
-      # Bound to all interfaces so other machines on the LAN can reach it.
       - "4040:4040"
     healthcheck:
       test:

@@ -53,9 +53,38 @@ export interface ServerOptions {
   hostname?: string;
   /** Override the bot think-time. Tests use 0 to play a game instantly. */
   botDelayMs?: number;
+  /** Directory of the built web client. Omit to run as a pure game server. */
+  staticRoot?: string | undefined;
+}
+
+/**
+ * Serve a file from the built client, falling back to index.html so the app
+ * survives a refresh on any path.
+ *
+ * Path traversal is blocked by resolving against the root and rejecting
+ * anything that escapes it - the URL comes from the network and is untrusted.
+ */
+async function serveStatic(root: string, pathname: string): Promise<Response | null> {
+  const clean = pathname.replace(/\.\.+/g, '.').replace(/^\/+/, '');
+  const candidates = clean === '' ? ['index.html'] : [clean, 'index.html'];
+  for (const rel of candidates) {
+    const file = Bun.file(`${root}/${rel}`);
+    if (await file.exists()) {
+      return new Response(file, {
+        headers: {
+          // Hashed asset filenames can cache hard; index.html must not.
+          'cache-control': rel.startsWith('assets/')
+            ? 'public, max-age=31536000, immutable'
+            : 'no-cache',
+        },
+      });
+    }
+  }
+  return null;
 }
 
 export function createServer(opts: ServerOptions = {}) {
+  const staticRoot = opts.staticRoot;
   const rooms = new Map<string, Room>();
   const emptySince = new Map<string, number>();
   const rates = new Map<string, { count: number; until: number }>();
@@ -286,19 +315,34 @@ export function createServer(opts: ServerOptions = {}) {
     port: opts.port ?? 4040,
     hostname: opts.hostname ?? '0.0.0.0',
 
-    fetch(req, srv) {
+    async fetch(req, srv) {
       const url = new URL(req.url);
+
       // Plain HTTP health check, so a platform probe does not need a websocket.
       if (url.pathname === '/health') {
         return new Response(JSON.stringify({ ok: true, rooms: rooms.size }), {
           headers: { 'content-type': 'application/json' },
         });
       }
+
+      // A websocket upgrade is a game connection; anything else is the client.
       const id = `u${nextId++}`;
       if (srv.upgrade(req, { data: { id, seatId: null, code: null, spectator: false } })) {
         return undefined;
       }
-      return new Response('uno-no-mercy server: connect over websocket', { status: 426 });
+
+      // Serve the built client when there is one, so a single process hosts
+      // the whole game. In development Vite serves it instead and this never
+      // runs.
+      if (staticRoot) {
+        const served = await serveStatic(staticRoot, url.pathname);
+        if (served) return served;
+      }
+
+      return new Response(
+        'uno-no-mercy server is running. Build the client (bun run build) or use the Vite dev server.',
+        { status: 200, headers: { 'content-type': 'text/plain' } },
+      );
     },
 
     websocket: {
