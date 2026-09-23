@@ -373,6 +373,27 @@ h2 {
 
 @media (max-width: 720px) {
   .log { display: none; }
-  .chat { width: 190px; }
+  .chat { width: 190px; bottom: 64px; }
   .card-panel { padding: 22px; }
+
+  /* On a phone the top strip is too narrow for the corner buttons and the
+     status chips side by side, so they stack instead of colliding. */
+  .corner { top: 10px; right: 10px; }
+  .corner button { padding: 6px 10px; font-size: 11.5px; }
+
+  .topbar {
+    top: 52px;
+    gap: 6px;
+    max-width: calc(100vw - 16px);
+  }
+  .chip { padding: 5px 10px; font-size: 11.5px; }
+
+  /* Dropping the deck count keeps the status row on ONE line, which is what
+     stops it wrapping down into the prompt. */
+  .chip.secondary { display: none; }
+
+  .prompt { top: 96px; gap: 7px; }
+  .prompt .label { padding: 7px 11px; font-size: 12.5px; }
+  .prompt button { padding: 7px 12px; font-size: 12.5px; }
+  .colorpick button { width: 44px; height: 36px; }
 }

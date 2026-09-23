@@ -153,7 +153,7 @@ the game.
 ## Development
 
 ```bash
-bun test              # 84 tests
+bun test              # 87 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups

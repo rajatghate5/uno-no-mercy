@@ -493,7 +493,8 @@ export class Hud {
         class: 'chip',
         text: state.direction === 1 ? '↻ clockwise' : '↺ anticlockwise',
       }),
-      el('div', { class: 'chip', text: `${state.drawPileCount} in deck` }),
+      // Least essential of the three; hidden on phones so the row fits.
+      el('div', { class: 'chip secondary', text: `${state.drawPileCount} in deck` }),
     );
 
     if (state.pendingDraw > 0) {

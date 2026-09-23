@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#15151f"/>
+  <ellipse cx="32" cy="32" rx="22" ry="15" fill="#d7263d" transform="rotate(-36 32 32)"/>
+  <text x="32" y="38" font-family="Archivo, Helvetica, Arial, sans-serif" font-size="17"
+        font-weight="800" fill="#f7f4ee" text-anchor="middle" transform="rotate(-36 32 32)">UNO</text>
+</svg>

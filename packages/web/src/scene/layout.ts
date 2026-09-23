@@ -56,8 +56,10 @@ export function ownHandLayout(count: number, selected: number, viewportAspect: n
   if (count === 0) return [];
 
   // The fan has to narrow as the hand grows or it runs off the table.
-  const maxSpread = viewportAspect < 1 ? 4.4 : 7.0;
-  const step = Math.min(CARD_W * 0.92, maxSpread / Math.max(1, count - 1));
+  const maxSpread = viewportAspect < 1 ? 4.6 : 8.2;
+  // A small positive gap at low card counts: overlapping cards are harder to
+  // aim at, and the hand only needs to fan once it runs out of room.
+  const step = Math.min(CARD_W * 1.12, maxSpread / Math.max(1, count - 1));
   const totalWidth = step * (count - 1);
   const arc = Math.min(0.24, 0.05 * count);
 

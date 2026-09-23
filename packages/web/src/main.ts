@@ -41,7 +41,7 @@ const sound = new Sound(localStorage.getItem('uno:muted') !== '1');
 let game: PlayableGame | null = null;
 let hud: Hud | null = null;
 let unsubscribe: (() => void) | null = null;
-let lastStateVersion = -1;
+let botTimer: number | null = null;
 let gameMeta: { difficulty: string; startedAt: number; bots: number } | null = null;
 let recorded = false;
 
@@ -90,6 +90,43 @@ function positionSeats() {
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
 
+/**
+ * How long a bot "thinks" before acting in a solo game.
+ *
+ * Long enough for the previous card's animation to land, so the table is
+ * readable rather than a blur of cards.
+ */
+const BOT_DELAY_MS = 750;
+
+function stopBotLoop() {
+  if (botTimer !== null) {
+    clearTimeout(botTimer);
+    botTimer = null;
+  }
+}
+
+/**
+ * Drive bot turns in a SOLO game.
+ *
+ * Only local games need this. In a networked game the server owns the state
+ * and steps its own bots; a client that also stepped them would race the
+ * server and submit duplicate moves.
+ *
+ * Each step triggers onStateChange, which calls back in here - so this is a
+ * self-sustaining loop that stops on its own the moment it is the human's
+ * turn or the game ends.
+ */
+function scheduleBotTurn() {
+  stopBotLoop();
+  const g = game;
+  if (!(g instanceof LocalGame)) return;
+  if (g.isOver || g.waitingOnHuman()) return;
+  botTimer = window.setTimeout(() => {
+    botTimer = null;
+    g.stepBot();
+  }, BOT_DELAY_MS);
+}
+
 // --- game wiring -----------------------------------------------------------
 
 function detach() {
@@ -99,7 +136,7 @@ function detach() {
   hud = null;
   game = null;
   view.reset();
-  lastStateVersion = -1;
+  stopBotLoop();
   recorded = false;
 }
 
@@ -150,7 +187,14 @@ function onStateChange() {
   cueSounds(g);
   refreshHud();
 
-  if (g.isOver) finishGame(g);
+  if (g.isOver) {
+    stopBotLoop();
+    finishGame(g);
+    return;
+  }
+
+  // Keep the table moving: if it is a bot's turn, queue their move.
+  scheduleBotTurn();
 }
 
 function cueSounds(g: PlayableGame) {
