@@ -42,6 +42,8 @@ export interface HouseRules {
   zeroPass: boolean;
   /** Draw until something is playable, instead of drawing exactly one card. */
   drawUntilPlayable: boolean;
+  /** A drawn card that can be played is played for you automatically. */
+  forcePlay: boolean;
 }
 
 export const DEFAULT_HOUSE_RULES: HouseRules = {
@@ -52,6 +54,7 @@ export const DEFAULT_HOUSE_RULES: HouseRules = {
   sevenSwap: true,
   zeroPass: true,
   drawUntilPlayable: false,
+  forcePlay: false,
 };
 
 /** Bounds enforced by the server. A hand limit below the deal is unplayable. */
@@ -69,10 +72,23 @@ export const BOT_SPEED_MS: Record<BotSpeed, number> = {
   slow: 1400,
 };
 
+/** Seconds a player gets per turn. 0 means no limit. */
+export type TurnSeconds = 0 | 15 | 30 | 60;
+export const TURN_SECONDS: TurnSeconds[] = [0, 15, 30, 60];
+
+export function cleanTurnSeconds(v: unknown): TurnSeconds {
+  return TURN_SECONDS.includes(v as TurnSeconds) ? (v as TurnSeconds) : 0;
+}
+
 export interface RoomSettings {
   botCount: number;
   difficulty: Difficulty;
   maxPlayers: number;
+  /**
+   * Auto-play for anyone who takes longer than this. Without a limit, one
+   * person walking away freezes the room for everybody else.
+   */
+  turnSeconds: TurnSeconds;
   /** Pace of bot turns. Purely presentational; it changes no outcome. */
   botSpeed: BotSpeed;
   /** Whether strangers with the code may watch without playing. */
@@ -85,6 +101,7 @@ export const DEFAULT_ROOM_SETTINGS: RoomSettings = {
   botCount: 0,
   difficulty: 'medium',
   maxPlayers: 6,
+  turnSeconds: 0,
   botSpeed: 'normal',
   allowSpectators: true,
   rules: DEFAULT_HOUSE_RULES,
@@ -125,6 +142,7 @@ export function cleanHouseRules(raw: unknown): HouseRules {
     sevenSwap: bool(r.sevenSwap, DEFAULT_HOUSE_RULES.sevenSwap),
     zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
     drawUntilPlayable: bool(r.drawUntilPlayable, DEFAULT_HOUSE_RULES.drawUntilPlayable),
+    forcePlay: bool(r.forcePlay, DEFAULT_HOUSE_RULES.forcePlay),
   };
 }
 

@@ -67,6 +67,7 @@ export class Room {
   private recorder: ReplayRecorder | null = null;
   private rng: number;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  private turnTimer: ReturnType<typeof setTimeout> | null = null;
   started = false;
 
   constructor(
@@ -169,6 +170,7 @@ export class Room {
       seed: this.seed,
       players: specs,
       rules: {
+        forcePlay: house.forcePlay,
         startingHand: house.startingHand,
         handLimit: house.handLimit,
         stackingEnabled: house.stacking,
@@ -183,6 +185,7 @@ export class Room {
     this.started = true;
     this.broadcastState(created.events);
     this.scheduleBot();
+    this.scheduleTurnTimeout();
     return true;
   }
 
@@ -225,10 +228,58 @@ export class Room {
 
     if (this.state.phase.type === 'gameOver') {
       this.clearBotTimer();
+      this.clearTurnTimer();
       this.broadcast({ t: 'ended', winner: this.state.phase.winner });
       return;
     }
     this.scheduleBot();
+    this.scheduleTurnTimeout();
+  }
+
+  private clearTurnTimer() {
+    if (this.turnTimer) {
+      clearTimeout(this.turnTimer);
+      this.turnTimer = null;
+    }
+  }
+
+  /**
+   * Auto-act for a human who has run out of time.
+   *
+   * Uses the SAME bot brain the AI seats use, so the fallback move is a legal,
+   * sensible one rather than a forfeit. A player who steps away loses tempo,
+   * not the game.
+   */
+  private scheduleTurnTimeout() {
+    this.clearTurnTimer();
+    const limit = this.settings.turnSeconds;
+    if (!limit) return;
+
+    const actor = this.actorId();
+    if (!actor) return;
+    const seat = this.seats.find((s) => s.id === actor);
+    // Bots have their own timer; only humans can stall.
+    if (!seat || seat.isBot) return;
+
+    this.turnTimer = this.schedule(() => {
+      this.turnTimer = null;
+      const s = this.state;
+      if (!s || s.phase.type === 'gameOver') return;
+      if (this.actorId() !== actor) return;
+      const view = redactFor(s, actor);
+      const d = decide(this.settings.difficulty, view, this.rng, this.memories[actor]!);
+      this.rng = d.rng;
+      this.broadcast({
+        t: 'chat',
+        message: {
+          from: 'server',
+          name: 'table',
+          text: `${seat.name} ran out of time`,
+          at: this.now(),
+        },
+      });
+      this.applyAction(d.action);
+    }, limit * 1000);
   }
 
   private clearBotTimer() {
@@ -276,6 +327,7 @@ export class Room {
 
   dispose() {
     this.clearBotTimer();
+    this.clearTurnTimer();
   }
 }
 

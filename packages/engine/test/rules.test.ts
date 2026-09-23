@@ -207,9 +207,89 @@ describe('rule variants', () => {
     expect(r.state.drawPile.length).toBeGreaterThan(10);
   });
 
+  test('forcePlay plays the drawn card when it is playable', () => {
+    const s = state({
+      players: [player('a', []), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('red', 7)],
+      rules: { forcePlay: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    // Drawn and immediately played, so the hand is empty and the 7 is on top.
+    expect(r.state.players[0]!.hand).toHaveLength(0);
+    expect(r.state.discardPile.at(-1)!.rank).toBe(7);
+  });
+
+  test('forcePlay leaves an unplayable card in hand and passes the turn', () => {
+    const s = state({
+      players: [player('a', []), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('blue', 9)],
+      rules: { forcePlay: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    expect(r.state.players[0]!.hand).toHaveLength(1);
+    expect(r.state.players[r.state.turn]!.id).toBe('b');
+  });
+
+  test('forcePlay on a drawn wild still asks for a colour', () => {
+    const s = state({
+      // Needs a spare card: emptying your hand WINS, and the game ending is a
+      // different (correct) outcome that would hide the colour prompt.
+      players: [player('a', [num('green', 2)]), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [card('wild')],
+      rules: { forcePlay: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    expect(r.state.phase.type).toBe('chooseColor');
+  });
+
+  test('forcePlay that empties your hand wins the game', () => {
+    const s = state({
+      players: [player('a', []), player('b', [num('blue', 1)])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('red', 7)],
+      rules: { forcePlay: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    expect(r.state.phase).toMatchObject({ type: 'gameOver', winner: 'a' });
+  });
+
+  test('forcePlay does not act for a player the draw just eliminated', () => {
+    const s = state({
+      players: [player('a', pile(24, 'red')), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('red', 7)],
+      rules: { forcePlay: true, handLimit: 25 },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    expect(r.state.players[0]!.eliminated).toBe(true);
+  });
+
+  test('forcePlay and drawUntilPlayable combine into draw-then-play', () => {
+    const s = state({
+      players: [player('a', []), player('b', [])],
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      drawPile: [num('red', 3), num('blue', 1), num('blue', 2)],
+      rules: { forcePlay: true, drawUntilPlayable: true },
+    });
+    const r = reduce(s, { type: 'draw', player: 'a' });
+    // Drew blue2, blue1, red3 - then played the red3.
+    expect(r.state.players[0]!.hand).toHaveLength(2);
+    expect(r.state.discardPile.at(-1)!.rank).toBe(3);
+  });
+
   test('default rules keep the real No Mercy behaviour', () => {
     expect(DEFAULT_RULES.stackMode).toBe('escalating');
     expect(DEFAULT_RULES.drawUntilPlayable).toBe(false);
+    expect(DEFAULT_RULES.forcePlay).toBe(false);
   });
 });
 

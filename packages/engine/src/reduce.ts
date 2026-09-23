@@ -333,6 +333,19 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
         }
       }
       applyMercy(d, events);
+
+      // Force Play: if the card that just arrived is playable, play it rather
+      // than letting the player sit on it. Checked AFTER the mercy sweep, so
+      // a player eliminated by the draw does not then play a card.
+      const drawer = d.players[idx];
+      if (d.rules.forcePlay && drawer && isActive(drawer) && drawer.hand.length > 0) {
+        const drawn = drawer.hand[drawer.hand.length - 1]!;
+        if (canPlay(d as unknown as GameState, drawn)) {
+          playCard(d, idx, drawn.id, events);
+          break;
+        }
+      }
+
       advance(d, events);
       break;
     }

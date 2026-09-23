@@ -168,6 +168,14 @@ export interface RuleConfig {
    * hands grow in bursts.
    */
   readonly drawUntilPlayable: boolean;
+  /**
+   * If the card you draw can be played, it is played for you immediately.
+   *
+   * Removes the choice to sit on a freshly drawn card, which is why it pairs
+   * naturally with drawUntilPlayable - together they turn a draw into "keep
+   * going until something lands, then play it".
+   */
+  readonly forcePlay: boolean;
   /** Safety valve for the simulation harness; not a real UNO rule. */
   readonly maxTurns: number;
 }
@@ -180,5 +188,6 @@ export const DEFAULT_RULES: RuleConfig = {
   stackingEnabled: true,
   stackMode: 'escalating',
   drawUntilPlayable: false,
+  forcePlay: false,
   maxTurns: 5000,
 };

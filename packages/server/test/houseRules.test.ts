@@ -86,6 +86,64 @@ describe('cleanHouseRules', () => {
   });
 });
 
+describe('turn timer', () => {
+  test('auto-plays for a human who runs out of time', async () => {
+    const c = await connect();
+    c.send({
+      t: 'create',
+      name: 'afk',
+      version: PROTOCOL_VERSION,
+      // 15s is the shortest the UI offers; the server clamps to that set.
+      settings: { botCount: 1, difficulty: 'easy', maxPlayers: 4, turnSeconds: 15 },
+    });
+    const welcome = await c.wait('welcome');
+    const lobby = await c.wait('lobby');
+    expect(lobby.settings.turnSeconds).toBe(15);
+    c.send({ t: 'start' });
+    const first = await c.wait('state');
+    // The host is seated first, so the timer is running against us.
+    expect(first.state.players[first.state.turn]!.id).toBe(welcome.you);
+    c.close();
+  });
+
+  test('an unknown timer value falls back to no limit', async () => {
+    const c = await connect();
+    c.send({
+      t: 'create',
+      name: 'host',
+      version: PROTOCOL_VERSION,
+      settings: { botCount: 1, difficulty: 'easy', maxPlayers: 4, turnSeconds: 7 },
+    });
+    await c.wait('welcome');
+    const lobby = await c.wait('lobby');
+    expect(lobby.settings.turnSeconds).toBe(0);
+    c.close();
+  });
+});
+
+describe('force play', () => {
+  test('reaches the dealt game', async () => {
+    const c = await connect();
+    c.send({
+      t: 'create',
+      name: 'host',
+      version: PROTOCOL_VERSION,
+      settings: {
+        botCount: 1,
+        difficulty: 'easy',
+        maxPlayers: 4,
+        rules: { ...DEFAULT_HOUSE_RULES, forcePlay: true, drawUntilPlayable: true },
+      },
+    });
+    await c.wait('welcome');
+    c.send({ t: 'start' });
+    const state = await c.wait('state');
+    expect(state.state.rules.forcePlay).toBe(true);
+    expect(state.state.rules.drawUntilPlayable).toBe(true);
+    c.close();
+  });
+});
+
 describe('house rules reach the game', () => {
   test('a custom starting hand changes what is dealt', async () => {
     const c = await connect();

@@ -39,12 +39,14 @@ The lobby's **Advanced setup** panel changes the game before you deal:
 | 7s swap hands | on | Play a 7, take someone's hand |
 | 0s pass hands | on | Play a 0, everyone shifts along |
 | Draw until playable | off | Keep drawing until something matches, rather than drawing one and passing |
+| Force play | off | A card you draw is played for you if it is playable |
 
 **Table**
 
 | Setting | Default | Effect |
 |---|---|---|
 | Bot speed | normal | fast 300ms / normal 700ms / slow 1400ms. Presentation only — changes no outcome |
+| Turn timer | off | 15/30/60s. Auto-plays for anyone who stalls, using the bot brain — so a player who walks away loses tempo, not the game |
 | Allow spectators | on | Whether people with the code can watch without playing |
 
 Everything is re-clamped server-side on every change — the values arrive from a
@@ -263,7 +265,7 @@ see `resolveServer()`.
 ## Development
 
 ```bash
-bun test              # 110 tests
+bun test              # 116 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups

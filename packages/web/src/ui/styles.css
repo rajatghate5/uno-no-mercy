@@ -421,24 +421,37 @@ h2 {
   border-radius: 9px;
   background: var(--panel-2);
 }
+.advanced {
+  border-color: #f2b70540;
+}
 .advanced > summary {
   cursor: pointer;
-  padding: 10px 13px;
-  font-size: 13.5px;
-  font-weight: 600;
+  padding: 11px 13px;
   list-style: none;
   color: var(--ink);
-  display: flex;
-  align-items: center;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 8px;
 }
-.advanced > summary::-webkit-details-marker { display: none; }
-.advanced > summary::before {
-  content: '▸';
+.advanced .adv-title { font-size: 13.5px; font-weight: 600; }
+.advanced .adv-summary {
+  font-size: 11.5px;
   color: var(--muted);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.advanced > summary:hover { background: #f2b7050d; border-radius: 8px; }
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced .adv-title::before {
+  content: '▸ ';
+  color: var(--accent);
+  display: inline-block;
   transition: transform 140ms ease;
 }
-.advanced[open] > summary::before { transform: rotate(90deg); }
+.advanced[open] .adv-title::before { content: '▾ '; }
 .advanced > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .advanced-body { padding: 4px 13px 13px; }
 

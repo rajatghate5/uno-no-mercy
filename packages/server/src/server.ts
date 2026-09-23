@@ -20,6 +20,7 @@ import {
   cleanBotSpeed,
   cleanHouseRules,
   cleanName,
+  cleanTurnSeconds,
   parseClientMessage,
   type ClientMessage,
   type ErrorCode,
@@ -168,6 +169,7 @@ export function createServer(opts: ServerOptions = {}) {
           botCount: clamp(msg.settings?.botCount ?? DEFAULT_SETTINGS.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? DEFAULT_SETTINGS.maxPlayers, 2, MAX_PLAYERS),
           botSpeed: cleanBotSpeed(msg.settings?.botSpeed),
+          turnSeconds: cleanTurnSeconds(msg.settings?.turnSeconds),
           allowSpectators: msg.settings?.allowSpectators !== false,
           rules: cleanHouseRules(msg.settings?.rules),
         };
@@ -280,6 +282,7 @@ export function createServer(opts: ServerOptions = {}) {
           botCount: clamp(msg.settings?.botCount ?? room.settings.botCount, 0, 9),
           maxPlayers: clamp(msg.settings?.maxPlayers ?? room.settings.maxPlayers, 2, MAX_PLAYERS),
           botSpeed: cleanBotSpeed(msg.settings?.botSpeed ?? room.settings.botSpeed),
+          turnSeconds: cleanTurnSeconds(msg.settings?.turnSeconds ?? room.settings.turnSeconds),
           allowSpectators:
             msg.settings?.allowSpectators ?? room.settings.allowSpectators,
           // Re-clamped on every change: a client can send anything.

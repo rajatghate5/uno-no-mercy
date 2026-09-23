@@ -10,11 +10,13 @@ import { COLORS, type Color, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
 import {
   HOUSE_RULE_LIMITS,
+  TURN_SECONDS,
   type BotSpeed,
   type ChatMessage,
   type HouseRules,
   type LobbyPlayer,
   type RoomSettings,
+  type TurnSeconds,
 } from '@uno/protocol';
 import { CARD_COLORS } from '../scene/cardArt.js';
 import type { LogEntry } from '../game/narrate.js';
@@ -600,7 +602,7 @@ function houseRuleControls(
       }),
     ]);
 
-  const choice = <T extends string>(
+  const choice = <T extends string | number>(
     label: string,
     hint: string,
     options: { value: T; label: string }[],
@@ -680,6 +682,12 @@ function houseRuleControls(
         rules.drawUntilPlayable,
         () => onRules({ drawUntilPlayable: !rules.drawUntilPlayable }),
       ),
+      toggle(
+        'Force play',
+        'A card you draw is played for you if it is playable',
+        rules.forcePlay,
+        () => onRules({ forcePlay: !rules.forcePlay }),
+      ),
     ]),
 
     group('Table', [
@@ -694,6 +702,15 @@ function houseRuleControls(
         settings.botSpeed,
         (v: BotSpeed) => onSettings({ botSpeed: v }),
       ),
+      choice(
+        'Turn timer',
+        settings.turnSeconds === 0
+          ? 'No limit — one player walking away freezes the table'
+          : `Auto-plays for anyone who takes over ${settings.turnSeconds}s`,
+        TURN_SECONDS.map((t) => ({ value: t, label: t === 0 ? 'Off' : `${t}s` })),
+        settings.turnSeconds,
+        (v: TurnSeconds) => onSettings({ turnSeconds: v }),
+      ),
       toggle(
         'Allow spectators',
         'Anyone with the code can watch without playing',
@@ -704,7 +721,12 @@ function houseRuleControls(
   ]);
 
   const panel = el('details', { class: 'advanced' }, [
-    el('summary', { text: 'Advanced setup' }),
+    el('summary', {}, [
+      el('span', { class: 'adv-title', text: 'Advanced setup' }),
+      // Showing the current values makes this read as a settings row you can
+      // act on, rather than a collapsed heading that might be anything.
+      el('span', { class: 'adv-summary', text: houseRuleSummary(rules) }),
+    ]),
     body,
   ]) as HTMLDetailsElement;
   panel.open = open;
@@ -720,6 +742,7 @@ export function houseRuleSummary(rules: HouseRules): string {
   if (!rules.sevenSwap) parts.push('no 7-swaps');
   if (!rules.zeroPass) parts.push('no 0-passes');
   if (rules.drawUntilPlayable) parts.push('draw until playable');
+  if (rules.forcePlay) parts.push('force play');
   return parts.join(' · ');
 }
 
