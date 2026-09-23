@@ -67,39 +67,46 @@ export class Screens {
       const needsCode = mode === 'join' || mode === 'spectate';
       const needsBots = mode === 'solo' || mode === 'host';
 
-      const modeBtn = (m: typeof mode, label: string) =>
-        el('button', {
+      const online = (m: typeof mode) => m !== 'solo';
+      const modeBtn = (m: typeof mode, label: string) => {
+        // Online modes stay VISIBLE but disabled when no server is reachable.
+        // Hiding them just raises the question "where did they go?" - which is
+        // exactly what happened the first time this shipped.
+        const blocked = online(m) && !opts.multiplayer;
+        return el('button', {
           'aria-pressed': mode === m,
+          disabled: blocked,
+          title: blocked ? 'Needs a game server — see the note below' : undefined,
           text: label,
           onClick: () => {
+            if (blocked) return;
             mode = m;
             render();
           },
         });
+      };
 
       const body: Node[] = [
-        el(
-          'div',
-          { class: 'seg' },
-          opts.multiplayer
-            ? [
-                modeBtn('solo', 'Vs bots'),
-                modeBtn('host', 'Host a game'),
-                modeBtn('join', 'Join a game'),
-                modeBtn('spectate', 'Spectate'),
-              ]
-            : // No server reachable: offering the online modes would just
-              // produce a connection timeout and look broken.
-              [modeBtn('solo', 'Vs bots')],
-        ),
+        el('div', { class: 'seg' }, [
+          modeBtn('solo', 'Vs bots'),
+          modeBtn('host', 'Host a game'),
+          modeBtn('join', 'Join a game'),
+          modeBtn('spectate', 'Spectate'),
+        ]),
       ];
 
       if (!opts.multiplayer) {
         body.push(
-          el('p', {
-            class: 'hint',
-            text: 'Multiplayer needs a game server, which this build has no address for. Clone the repo and run "bun run serve" to play with friends.',
-          }),
+          el('div', { class: 'notice' }, [
+            el('strong', { text: 'Online play is off on this build' }),
+            el('span', {
+              text: 'This page is hosted on GitHub Pages, which serves files but cannot run a game server — so there is nothing for Host, Join or Spectate to connect to. Playing against bots works fully.',
+            }),
+            el('span', {
+              class: 'how',
+              text: 'To play with friends: clone the repo and run "bun run serve", or deploy the included render.yaml for a single URL that does both.',
+            }),
+          ]),
         );
       }
 

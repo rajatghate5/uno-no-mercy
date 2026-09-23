@@ -167,6 +167,23 @@ h2 {
 .actions button { flex: 1 1 auto; }
 
 .hint { font-size: 12.5px; color: var(--muted); }
+
+/* An explained absence, rather than a missing button nobody can account for. */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #f2b7050d;
+  border: 1px solid #f2b70540;
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.notice strong { color: var(--accent); font-size: 13px; font-weight: 600; }
+.notice .how { color: #b9b2c6; }
 .err { font-size: 13px; color: #ff8b9c; }
 
 /* ---------- in-game HUD ---------- */
