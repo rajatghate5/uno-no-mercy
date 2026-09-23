@@ -156,10 +156,28 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
   const resize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
+    const portrait = w / h < 1;
+
     renderer.setSize(w, h, false);
+    // Cap the pixel ratio harder on phones: a 3x device renders nine times the
+    // pixels, which is the difference between 60fps and a slideshow.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, portrait ? 2 : 2));
+    // Soft shadows are the most expensive thing on the table; a phone gets a
+    // smaller map rather than none, so cards still sit on the felt.
+    if (key.shadow.mapSize.width !== (portrait ? 1024 : 2048)) {
+      key.shadow.mapSize.set(portrait ? 1024 : 2048, portrait ? 1024 : 2048);
+      // Dispose the old render target; three allocates a new one at the new
+      // size on the next frame.
+      key.shadow.map?.dispose();
+      key.shadow.map = null as unknown as typeof key.shadow.map;
+    }
+
     camera.aspect = w / h;
-    // On a narrow screen the table needs a wider lens or the hand runs off.
-    camera.fov = w / h < 1 ? 58 : 42;
+    // A narrow screen needs a wider lens, and the camera pulled in, or the
+    // frame is mostly empty felt with the table stranded in the middle.
+    camera.fov = portrait ? 56 : 42;
+    camera.position.set(0, portrait ? 8.0 : 8.9, portrait ? 6.6 : 7.9);
+    camera.lookAt(0, 0, portrait ? -0.2 : -0.75);
     camera.updateProjectionMatrix();
   };
   resize();

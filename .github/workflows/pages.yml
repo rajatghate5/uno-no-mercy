@@ -1,0 +1,64 @@
+# Deploy the web client to GitHub Pages.
+#
+# Pages serves STATIC FILES ONLY, so this deploys the solo-vs-bots game.
+# Multiplayer needs the WebSocket server running somewhere that supports long
+# lived connections; set VITE_UNO_SERVER below to point at it.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+
+      # Catch a broken build before it reaches Pages.
+      - run: bun test
+      - run: bun run typecheck
+
+      - name: Build client
+        env:
+          # Project pages live at /<repo>/, so assets need that prefix.
+          BASE_PATH: /${{ github.event.repository.name }}/
+          # Leave empty for a solo-only deploy. To enable multiplayer, set a
+          # repository variable UNO_SERVER to your server's wss:// URL.
+          # It MUST be wss:// - a page served over HTTPS cannot open a ws://
+          # socket, the browser blocks it as mixed content.
+          VITE_UNO_SERVER: ${{ vars.UNO_SERVER }}
+        run: bun run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

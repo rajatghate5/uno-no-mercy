@@ -168,11 +168,42 @@ the game.
 
 **Winning.** Play your last card, or be the last player standing.
 
+## Deploying
+
+### GitHub Pages (solo play)
+
+`.github/workflows/pages.yml` builds and publishes on every push to `main`.
+Enable it once: **Settings → Pages → Source → GitHub Actions**. The site lands
+at `https://<user>.github.io/<repo>/`.
+
+**Pages serves static files only — it cannot run the WebSocket server.** The
+workflow therefore ships the solo-vs-bots game, and the client hides the online
+modes rather than offering four options where three time out.
+
+### Adding multiplayer to a Pages deploy
+
+Host the server anywhere that allows long-lived connections (Render, Fly,
+Railway — the Dockerfile runs as-is), then set a repository variable
+**`UNO_SERVER`** to its URL under Settings → Secrets and variables → Actions →
+Variables. The next deploy picks it up.
+
+> It **must** be `wss://`, not `ws://`. A page served over HTTPS cannot open an
+> insecure WebSocket — the browser blocks it as mixed content — so a `ws://`
+> address on Pages is the same as no server at all. `resolveServer()` treats it
+> that way on purpose, and `serverUrl.test.ts` pins the behaviour.
+
+### One container instead (game + client, one URL)
+
+The Dockerfile builds the client and serves it from the game server, so
+everything lives on one port. This is the simplest option if you want
+multiplayer without running two services.
+
 ## Environment variables
 
 | Variable | Used by | Default | Notes |
 |----------|---------|---------|-------|
-| `VITE_UNO_SERVER` | client (build time) | `ws://<host>:4040` | Which server to connect to |
+| `VITE_UNO_SERVER` | client (build time) | `ws://<host>:4040` | Server address. Must be `wss://` if the page is served over HTTPS |
+| `BASE_PATH` | client (build time) | `/` | Sub-path for project-site hosting, e.g. `/uno-no-mercy/` |
 | `PORT` | server | `4040` | Set automatically by most hosts |
 | `HOST` | server | `0.0.0.0` | Bind address |
 | `UNO_BOT_DELAY_MS` | server | `700` | Bot think-time. Tests set `0` |
@@ -181,7 +212,7 @@ the game.
 ## Development
 
 ```bash
-bun test              # 88 tests
+bun test              # 94 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups
@@ -240,6 +271,19 @@ Both tiers now hold their draw cards in reserve.
 > **The client never computes authority.** It sends intents and renders what it
 > is given. Adding a "quick" client-side legality shortcut re-introduces exactly
 > the divergence `legalMoves()` exists to prevent.
+
+> **A phone has no hover, so one tap cannot both preview and commit.** The
+> desktop hand lifts a card on hover and plays it on click; on a touch device
+> the first tap raises the card and a second tap on the *same* card plays it.
+> Without that, a mis-tap costs a turn instead of a correction.
+
+> **Size the hand from the camera frustum, not a constant.** The portrait
+> camera sits ~1.3 world units closer than the landscape one, so a hardcoded
+> distance made the fan wider than the viewport and sliced the end cards off
+> the screen. `handWidthBudget()` measures the live camera every update.
+
+> **Clamp HUD labels by their measured width.** A fixed inset that looked right
+> on a phone let the wider seat chips hang off both edges of a tablet.
 
 > **Bot turns are driven by whoever owns the state.** In a solo game the client
 > steps the bots; in a network game the *server* does. A client that also steps

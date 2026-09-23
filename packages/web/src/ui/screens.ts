@@ -53,6 +53,8 @@ export class Screens {
     onChoose: (c: MenuChoice) => void;
     onStats: () => void;
     serverUrl: string;
+    /** False on a static host with no reachable game server. */
+    multiplayer: boolean;
   }): void {
     let bots = 3;
     let difficulty: Difficulty = 'medium';
@@ -76,13 +78,30 @@ export class Screens {
         });
 
       const body: Node[] = [
-        el('div', { class: 'seg' }, [
-          modeBtn('solo', 'Vs bots'),
-          modeBtn('host', 'Host a game'),
-          modeBtn('join', 'Join a game'),
-          modeBtn('spectate', 'Spectate'),
-        ]),
+        el(
+          'div',
+          { class: 'seg' },
+          opts.multiplayer
+            ? [
+                modeBtn('solo', 'Vs bots'),
+                modeBtn('host', 'Host a game'),
+                modeBtn('join', 'Join a game'),
+                modeBtn('spectate', 'Spectate'),
+              ]
+            : // No server reachable: offering the online modes would just
+              // produce a connection timeout and look broken.
+              [modeBtn('solo', 'Vs bots')],
+        ),
       ];
+
+      if (!opts.multiplayer) {
+        body.push(
+          el('p', {
+            class: 'hint',
+            text: 'Multiplayer needs a game server, which this build has no address for. Clone the repo and run "bun run serve" to play with friends.',
+          }),
+        );
+      }
 
       if (needsBots) {
         body.push(
@@ -159,7 +178,7 @@ export class Screens {
             }),
             el('p', {
               class: 'hint',
-              text: `Server: ${opts.serverUrl}. Run "bun run serve" if nobody is hosting yet.`,
+              text: `Server: ${opts.serverUrl}`,
             }),
           ]),
         );
@@ -426,7 +445,10 @@ export class Hud {
   /** Reposition seat labels to follow their 3D seats. */
   seats(
     state: RedactedState,
-    project: (index: number) => { x: number; y: number } | null,
+    project: (
+      index: number,
+      size: { width: number; height: number },
+    ) => { x: number; y: number } | null,
     limit: number,
   ): void {
     const seen = new Set<string>();
@@ -441,7 +463,9 @@ export class Hud {
         this.seatNodes.set(p.id, node);
         this.root.append(node);
       }
-      const screen = project(i);
+      // Measured before positioning, so the caller can clamp by real size.
+      const box = node.getBoundingClientRect();
+      const screen = project(i, { width: box.width || 96, height: box.height || 44 });
       if (!screen) {
         node.style.display = 'none';
         return;

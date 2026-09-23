@@ -15,18 +15,28 @@ import type { Difficulty } from '@uno/bots';
 import { LocalGame } from './game/local.js';
 import { NetworkGame } from './game/network.js';
 import { Sound } from './game/sound.js';
+import { resolveServer } from './game/serverUrl.js';
 import { Store } from './game/store.js';
 import type { PlayableGame } from './game/types.js';
 import { warmCardArt } from './scene/cardArt.js';
 import { createStage } from './scene/table.js';
 import { TableView } from './scene/tableView.js';
-import { seatAngle, seatPosition } from './scene/layout.js';
+import {
+  HAND_Z_LANDSCAPE,
+  HAND_Z_PORTRAIT,
+  seatAngle,
+  seatPosition,
+  visibleWidthAtHand,
+} from './scene/layout.js';
 import { TABLE_RADIUS } from './scene/table.js';
 import { Hud, Screens, type MenuChoice } from './ui/screens.js';
 
-const SERVER_URL =
-  import.meta.env.VITE_UNO_SERVER ??
-  `ws://${location.hostname || '127.0.0.1'}:4040`;
+// Where the multiplayer server lives, and whether one is reachable at all.
+const { url: SERVER_URL, multiplayer: MULTIPLAYER_AVAILABLE } = resolveServer({
+  configured: import.meta.env.VITE_UNO_SERVER as string | undefined,
+  protocol: location.protocol,
+  hostname: location.hostname,
+});
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const hudLayer = document.getElementById('hud-layer') as HTMLElement;
@@ -46,6 +56,14 @@ let gameMeta: { difficulty: string; startedAt: number; bots: number } | null = n
 let recorded = false;
 
 const defaultName = localStorage.getItem('uno:name') || 'player';
+
+/**
+ * Touch devices have no hover, so the lift-to-preview never fires and the
+ * first tap would commit a card immediately. On touch we require two taps:
+ * one to raise the card, a second on the SAME card to play it. Mis-taps then
+ * cost a correction instead of a turn.
+ */
+const isTouch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
 
 // --- render loop -----------------------------------------------------------
 
@@ -69,19 +87,28 @@ function positionSeats() {
   );
   hud.seats(
     state,
-    (i) => {
+    (i, size) => {
       const angle = seatAngle(i, viewerIndex, state.players.length);
       const [x, z] = seatPosition(angle, TABLE_RADIUS - 0.25);
       // Viewer's own seat would sit under the hand; hide it.
       if (i === viewerIndex) return null;
       const p = new Vector3(x, 0.35, z).project(stage.camera);
-      // Clamp inside the viewport: seats at the table edge project past the
-      // screen bounds on a wide window and the label disappears.
-      const pad = 66;
+      const portrait = window.innerWidth < window.innerHeight;
+
+      // Clamp by the label's MEASURED half-width, not a guessed constant.
+      // Labels are translate(-50%,-50%) centred, so a fixed pad let wider
+      // chips hang off the edge on a tablet while looking fine on a phone.
+      const padX = size.width / 2 + 6;
+      const padY = size.height / 2 + 4;
+      const topFloor = (portrait ? 150 : 128) + padY;
+
       return {
-        x: clamp(((p.x + 1) / 2) * window.innerWidth, pad, window.innerWidth - pad),
-        // Floor of 128 keeps the far seat's label clear of the prompt bar.
-        y: clamp(((-p.y + 1) / 2) * window.innerHeight, 128, window.innerHeight - 150),
+        x: clamp(((p.x + 1) / 2) * window.innerWidth, padX, window.innerWidth - padX),
+        y: clamp(
+          ((-p.y + 1) / 2) * window.innerHeight,
+          topFloor,
+          window.innerHeight - (portrait ? 300 : 260),
+        ),
       };
     },
     state.rules.handLimit,
@@ -89,6 +116,20 @@ function positionSeats() {
 }
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+/**
+ * Measure how much world-width the hand may occupy, from the LIVE camera.
+ *
+ * Recomputed per update rather than cached, because the camera moves between
+ * portrait and landscape and a stale budget overflows the viewport.
+ */
+function handWidthBudget(): number {
+  const aspect = window.innerWidth / window.innerHeight;
+  const handZ = aspect < 1 ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE;
+  const cam = stage.camera.position;
+  const distance = Math.hypot(cam.y - 0.46, cam.z - handZ);
+  return visibleWidthAtHand(aspect, stage.camera.fov, distance);
+}
 
 /**
  * How long a bot "thinks" before acting in a solo game.
@@ -183,7 +224,7 @@ function onStateChange() {
   // Feed the 3D table the same events that drive the log, so a card flies
   // from the seat that actually played it.
   const aspect = window.innerWidth / window.innerHeight;
-  view.update(state, g.lastEvents, aspect);
+  view.update(state, g.lastEvents, aspect, handWidthBudget());
   cueSounds(g);
   refreshHud();
 
@@ -236,7 +277,7 @@ function refreshHud() {
 
   if (!g.waitingOnHuman()) {
     const upName = state.players[state.turn]?.name ?? 'someone';
-    return hud.prompt({ label: `${upName} is thinking…` });
+    return hud.prompt({ label: `${upName}…` });
   }
 
   const phase = state.phase;
@@ -270,8 +311,13 @@ function refreshHud() {
     });
   }
 
+  const narrow = window.innerWidth < 560;
   hud.prompt({
-    label: 'Your turn — click a card to play it',
+    label: narrow
+      ? isTouch
+        ? 'Your turn — tap a card, tap again to play'
+        : 'Your turn'
+      : 'Your turn — click a card to play it',
     buttons: [
       {
         label: state.pendingDraw > 0 ? `Take +${state.pendingDraw}` : 'Draw a card',
@@ -338,33 +384,61 @@ function finishGame(g: PlayableGame) {
 
 // --- pointer interaction ---------------------------------------------------
 
-canvas.addEventListener('pointermove', (e) => {
+function relayout() {
   const g = game;
-  if (!g || g.isOver || g.spectator || !g.waitingOnHuman()) return;
-  if (g.view()?.phase.type !== 'play') return;
+  const state = g?.view();
+  if (state) view.update(state, [], window.innerWidth / window.innerHeight, stage.camera.fov);
+}
+
+function playable(): { hand: readonly { id: string }[] } | null {
+  const g = game;
+  if (!g || g.isOver || g.spectator || !g.waitingOnHuman()) return null;
+  const state = g.view();
+  if (!state || state.phase.type !== 'play') return null;
+  return { hand: state.players.find((p) => p.id === g.youId)?.hand ?? [] };
+}
+
+canvas.addEventListener('pointermove', (e) => {
+  if (isTouch) return; // a finger "moving" is a drag, not a hover
+  if (!playable()) return;
   const hit = view.pick(e.clientX, e.clientY, stage.camera);
   if (hit !== view.selected) {
     view.selected = hit;
-    // Re-layout so the hovered card lifts out of the fan.
-    const state = g.view();
-    if (state) view.update(state, [], window.innerWidth / window.innerHeight);
+    relayout();
   }
 });
 
 canvas.addEventListener('pointerdown', (e) => {
   sound.resume();
-  const g = game;
-  if (!g || g.isOver || g.spectator || !g.waitingOnHuman()) return;
-  const state = g.view();
-  if (!state || state.phase.type !== 'play') return;
+  const ctx = playable();
+  if (!ctx) return;
 
   const hit = view.pick(e.clientX, e.clientY, stage.camera);
+
+  if (isTouch) {
+    // Tapping away from the hand just clears the selection.
+    if (hit < 0) {
+      if (view.selected !== -1) {
+        view.selected = -1;
+        relayout();
+      }
+      return;
+    }
+    // First tap on a card raises it; second tap on the same card commits.
+    if (hit !== view.selected) {
+      view.selected = hit;
+      relayout();
+      sound.play('draw');
+      return;
+    }
+  }
+
   if (hit < 0) return;
-  const hand = state.players.find((p) => p.id === g.youId)?.hand ?? [];
-  const card = hand[hit];
+  const card = ctx.hand[hit];
   if (!card) return;
   // The engine rejects illegal moves; applying is how we find out.
-  g.apply({ type: 'play', player: g.youId, cardId: card.id });
+  game?.apply({ type: 'play', player: game.youId, cardId: card.id });
+  view.selected = -1;
 });
 
 // --- screens ---------------------------------------------------------------
@@ -374,6 +448,7 @@ function toMenu() {
   screens.menu({
     defaultName,
     serverUrl: SERVER_URL,
+    multiplayer: MULTIPLAYER_AVAILABLE,
     onStats: () =>
       screens.stats(
         store.stats(),

@@ -149,7 +149,7 @@ export class TableView {
 
   // --- the update ----------------------------------------------------------
 
-  update(state: RedactedState, events: GameEvent[], aspect: number): void {
+  update(state: RedactedState, events: GameEvent[], aspect: number, widthBudget: number): void {
     this.seatCount = state.players.length;
     this.viewerIndex = state.players.findIndex((p) => p.id === state.viewer);
     if (this.viewerIndex < 0) this.viewerIndex = 0;
@@ -169,7 +169,7 @@ export class TableView {
       this.place(held.mesh, seatSpawn(angle, e.player === state.viewer));
     }
 
-    this.layoutOwnHand(state, aspect, live);
+    this.layoutOwnHand(state, aspect, widthBudget, live);
     this.layoutOpponents(state, live);
     this.layoutDiscard(state, live);
     this.layoutDrawPile(state, live);
@@ -181,7 +181,7 @@ export class TableView {
     this.dealt = true;
   }
 
-  private layoutOwnHand(state: RedactedState, aspect: number, live: Set<string>): void {
+  private layoutOwnHand(state: RedactedState, aspect: number, widthBudget: number, live: Set<string>): void {
     const me = state.players.find((p) => p.id === state.viewer);
     const hand = me?.hand ?? [];
 
@@ -192,7 +192,7 @@ export class TableView {
     }
 
     if (this.selected >= hand.length) this.selected = hand.length - 1;
-    const targets = ownHandLayout(hand.length, this.selected, aspect);
+    const targets = ownHandLayout(hand.length, this.selected, aspect, widthBudget);
     const isFirstDeal = !this.dealt;
 
     hand.forEach((card, i) => {

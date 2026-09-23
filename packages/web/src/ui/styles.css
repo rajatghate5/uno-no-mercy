@@ -19,11 +19,16 @@
 html, body {
   margin: 0;
   height: 100%;
+  /* dvh tracks the mobile browser's collapsing toolbar; 100vh does not, and
+     leaves a strip of the page permanently under the address bar. */
+  height: 100dvh;
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--ground);
   color: var(--ink);
   font-family: var(--ui);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #stage {
@@ -32,6 +37,9 @@ html, body {
   width: 100%;
   height: 100%;
   display: block;
+  /* Without this, dragging on the canvas scrolls the page, pinches zoom it,
+     and a downward swipe triggers pull-to-refresh mid-game. */
+  touch-action: none;
 }
 
 /* The overlay never eats pointer events; only its own controls do. */
@@ -39,6 +47,9 @@ html, body {
   position: fixed;
   inset: 0;
   pointer-events: none;
+  /* Keep the HUD clear of notches and home indicators. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right)
+           env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 #overlay > * { pointer-events: none; }
 #hud-layer, #screen-layer { position: absolute; inset: 0; }
@@ -391,6 +402,12 @@ h2 {
   /* Dropping the deck count keeps the status row on ONE line, which is what
      stops it wrapping down into the prompt. */
   .chip.secondary { display: none; }
+
+  /* Compact seat chips, or they reach the middle of the table and cover the
+     draw and discard piles. */
+  .seat { min-width: 0; padding: 5px 8px; border-radius: 8px; }
+  .seat .name { font-size: 11.5px; }
+  .seat .count { font-size: 10.5px; }
 
   .prompt { top: 96px; gap: 7px; }
   .prompt .label { padding: 7px 11px; font-size: 12.5px; }

@@ -68,11 +68,39 @@ function clearance(tilt: number): number {
   return (CARD_H / 2) * Math.sin(tilt) + 0.04;
 }
 
-export function ownHandLayout(count: number, selected: number, viewportAspect: number): Transform[] {
+/** Where the hand sits, so the camera can be measured against it. */
+export const HAND_Z_LANDSCAPE = 3.35;
+export const HAND_Z_PORTRAIT = 3.05;
+
+/**
+ * How wide the camera can actually see at the hand, in world units.
+ *
+ * `distance` must be measured from the REAL camera. Hardcoding it produced a
+ * portrait fan wider than the viewport, because the portrait camera sits
+ * ~1.3 units closer than the landscape one and the hardcoded value was the
+ * landscape figure.
+ */
+export function visibleWidthAtHand(
+  aspect: number,
+  fovDegrees: number,
+  distance: number,
+): number {
+  const halfFov = (fovDegrees * Math.PI) / 180 / 2;
+  return 2 * distance * Math.tan(halfFov) * aspect;
+}
+
+export function ownHandLayout(
+  count: number,
+  selected: number,
+  viewportAspect: number,
+  /** Visible world-width at the hand, measured from the live camera. */
+  widthBudget: number,
+): Transform[] {
   if (count === 0) return [];
 
-  // The fan has to narrow as the hand grows or it runs off the table.
-  const maxSpread = viewportAspect < 1 ? 4.6 : 8.2;
+  // Leave room for a whole card plus a margin, so the outermost card is fully
+  // on screen rather than half-cut by the viewport edge.
+  const maxSpread = Math.max(1.2, widthBudget * 0.88 - CARD_W);
   // A small positive gap at low card counts: overlapping cards are harder to
   // aim at, and the hand only needs to fan once it runs out of room.
   const step = Math.min(CARD_W * 1.12, maxSpread / Math.max(1, count - 1));
@@ -81,13 +109,15 @@ export function ownHandLayout(count: number, selected: number, viewportAspect: n
 
   const restY = clearance(HAND_TILT);
   const selY = clearance(HAND_TILT_SELECTED) + 0.16;
+  // A phone has no room for the arc; flattening it keeps every card reachable.
+  const portrait = viewportAspect < 1;
 
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : i / (count - 1) - 0.5;
     const x = t * totalWidth;
     // Kept well inside the table edge: further back and the near row of
     // cards is clipped by the bottom of the viewport.
-    const z = 3.35 - Math.abs(t) * arc * 2.6;
+    const z = (portrait ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE) - Math.abs(t) * arc * 2.6;
     const isSel = i === selected;
 
     return {
