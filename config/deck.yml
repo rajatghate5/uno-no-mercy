@@ -1,22 +1,14 @@
 # ============================================================================
 # UNO Show 'Em No Mercy — deck composition
 # ============================================================================
-# This file is the SINGLE source of truth for what is in the deck. The engine
-# reads it at startup and refuses to boot unless the counts sum to `total`.
+# The engine reads this and refuses to boot unless the counts sum to `total`.
 #
-# ⚠ TASK 0 — VERIFY THESE COUNTS AGAINST YOUR PHYSICAL DECK.
+# Verified against open-mercy.com's full 168-card breakdown. Its stated
+# subtotals contain two typos ("38 per colour" for a list of 37, "16 wilds"
+# for a list of 20), but the ITEMS it lists sum to exactly 168 and agree with
+# its own per-category totals (76 numbers, 72 coloured actions).
 #
-# No public source publishes an authoritative per-type breakdown (we checked
-# the UNO Wiki, gamerules.com, unorules.com, unonomercyrules.com, unoregler.com
-# and editioncards.com — all state "168 cards" and stop there). The numbers
-# below are the best reconstruction from the most specific source found, which
-# confirmed: numbers 0-9 x2 per colour, Draw 2 x3, Draw 4 x2, Skip x3,
-# Skip Everyone x2 per colour. Reverse and Discard All are inferred to make
-# 168, and the wild split is inferred.
-#
-# Getting this wrong is INVISIBLE for weeks and then silently poisons every
-# probability the hard bot computes. Sit down with the deck, count it, fix
-# this file. Nothing else in the codebase needs to change.
+# 37 per colour x 4 = 148, plus 20 wilds = 168.
 # ============================================================================
 
 total: 168
@@ -25,24 +17,31 @@ colors: [red, yellow, green, blue]
 
 # How many of each card, PER COLOUR. Multiplied by 4 colours.
 perColor:
-  # number cards — each of 0,1,2,...,9 appears this many times
-  numbers: 2          # => 10 ranks x 2 = 20 cards per colour
+  # 0 is deliberately rarer than the other ranks - one per colour, not two.
+  # It is the card that makes everyone pass their whole hand along.
+  zero: 1
+  # Copies of EACH rank 1-9, so 9 x 2 = 18 cards.
+  numbers: 2
 
   drawTwo: 3
   skip: 3
   reverse: 3
-  drawFour: 2         # the COLOURED +4 (not the wild one)
-  skipEveryone: 2
-  discardAll: 1
-  # per-colour subtotal: 20 + 3 + 3 + 3 + 2 + 2 + 1 = 34
-  # x 4 colours = 136
+  # The COLOURED +4. Distinct from Wild Reverse Draw 4 below.
+  drawFour: 3
+  skipEveryone: 3
+  discardAll: 3
+  # per-colour subtotal: 1 + 18 + 3 + 3 + 3 + 3 + 3 + 3 = 37
+  # x 4 colours = 148
 
-# Wild cards — not tied to a colour. Total must be `total` - (perColor sum x 4).
+# Wild cards, not tied to a colour. 5 types x 4 = 20.
+#
+# NOTE: there is no plain "Wild Draw 4" in No Mercy. The deck has a coloured
+# +4 in each suit (above) and a Wild Reverse Draw 4 — but no colourless plain
+# +4. An earlier version of this file invented four of them.
 wilds:
   wild: 4
-  wildDrawFour: 4
-  wildDrawSix: 8
+  wildDrawSix: 4
   wildDrawTen: 4
   wildReverseDrawFour: 4
-  wildColorRoulette: 8
-  # subtotal: 32
+  wildColorRoulette: 4
+  # subtotal: 20

@@ -52,6 +52,22 @@ export function seatPosition(angle: number, radius: number): [number, number] {
  * The viewer's own hand: a shallow arc across the bottom, tilted up toward
  * the camera so the faces are readable rather than foreshortened.
  */
+/** How far the hand is tilted up from flat, in radians. */
+const HAND_TILT = 0.6;
+const HAND_TILT_SELECTED = 0.78;
+
+/**
+ * Minimum height a tilted card's CENTRE must sit at for its bottom edge to
+ * clear the felt.
+ *
+ * A card tilted by `tilt` dips (CARD_H / 2) * sin(tilt) below its own centre.
+ * Lift it less than that and the table plane cuts the bottom off the card -
+ * which is exactly what happened with a hardcoded 0.2 against a 0.6 tilt.
+ */
+function clearance(tilt: number): number {
+  return (CARD_H / 2) * Math.sin(tilt) + 0.04;
+}
+
 export function ownHandLayout(count: number, selected: number, viewportAspect: number): Transform[] {
   if (count === 0) return [];
 
@@ -63,20 +79,23 @@ export function ownHandLayout(count: number, selected: number, viewportAspect: n
   const totalWidth = step * (count - 1);
   const arc = Math.min(0.24, 0.05 * count);
 
+  const restY = clearance(HAND_TILT);
+  const selY = clearance(HAND_TILT_SELECTED) + 0.16;
+
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : i / (count - 1) - 0.5;
     const x = t * totalWidth;
-    // A gentle arc: the ends sit slightly further from the camera and lower.
     // Kept well inside the table edge: further back and the near row of
     // cards is clipped by the bottom of the viewport.
     const z = 3.35 - Math.abs(t) * arc * 2.6;
     const isSel = i === selected;
 
     return {
-      pos: [x, isSel ? 0.66 : 0.2 + i * 0.001, isSel ? z - 0.34 : z],
+      // The tiny per-card increment stops coplanar cards z-fighting.
+      pos: [x, (isSel ? selY : restY) + i * 0.002, isSel ? z - 0.34 : z],
       rot: [
         // Laid back toward the felt, but tipped up to face the camera.
-        -Math.PI / 2 + (isSel ? 0.78 : 0.6),
+        -Math.PI / 2 + (isSel ? HAND_TILT_SELECTED : HAND_TILT),
         0,
         -t * arc,
       ],

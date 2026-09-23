@@ -12,7 +12,8 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web/tsconfig.json",
     "sim": "bun run packages/engine/test/simulate.ts",
-    "bench": "bun run packages/engine/test/benchmark.ts"
+    "bench": "bun run packages/engine/test/benchmark.ts",
+    "deck": "bun run packages/engine/test/deck-report.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

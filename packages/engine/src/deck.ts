@@ -13,48 +13,59 @@ export interface DeckSpec {
   total: number;
   colors: readonly Color[];
   perColor: {
+    /** 0 is rarer than the other ranks: one per colour, not two. */
+    zero: number;
+    /** Copies of EACH rank 1-9. */
     numbers: number;
     drawTwo: number;
     skip: number;
     reverse: number;
+    /** The COLOURED +4. Distinct from Wild Reverse Draw 4. */
     drawFour: number;
     skipEveryone: number;
     discardAll: number;
   };
-  wilds: {
+  /**
+   * Wild counts. Partial on purpose: No Mercy has no plain Wild Draw 4, so
+   * that key is simply absent rather than set to zero.
+   */
+  wilds: Partial<{
     wild: number;
     wildDrawFour: number;
     wildDrawSix: number;
     wildDrawTen: number;
     wildReverseDrawFour: number;
     wildColorRoulette: number;
-  };
+  }>;
 }
 
 /**
- * Default composition. Mirrors config/deck.yml — see the warning in that file:
- * these counts are a best reconstruction and must be verified against the
- * physical deck.
+ * Default composition. Mirrors config/deck.yml.
+ *
+ * 37 per colour x 4 = 148, plus 20 wilds = 168.
+ *
+ * Note what is NOT here: a plain Wild Draw 4. No Mercy has a COLOURED +4 in
+ * each suit and a Wild Reverse Draw 4, and no colourless plain +4.
  */
 export const DEFAULT_DECK_SPEC: DeckSpec = {
   total: 168,
   colors: COLORS,
   perColor: {
-    numbers: 2,
+    zero: 1,
+    numbers: 2, // each of ranks 1-9
     drawTwo: 3,
     skip: 3,
     reverse: 3,
-    drawFour: 2,
-    skipEveryone: 2,
-    discardAll: 1,
+    drawFour: 3,
+    skipEveryone: 3,
+    discardAll: 3,
   },
   wilds: {
     wild: 4,
-    wildDrawFour: 4,
-    wildDrawSix: 8,
+    wildDrawSix: 4,
     wildDrawTen: 4,
     wildReverseDrawFour: 4,
-    wildColorRoulette: 8,
+    wildColorRoulette: 4,
   },
 };
 
@@ -63,9 +74,17 @@ export class DeckSpecError extends Error {}
 /** Cards a spec will produce, without building them. Used for validation and by bots. */
 export function deckSize(spec: DeckSpec): number {
   const p = spec.perColor;
+  // ranks 1-9 at p.numbers each, plus however many zeros.
   const perColor =
-    p.numbers * 10 + p.drawTwo + p.skip + p.reverse + p.drawFour + p.skipEveryone + p.discardAll;
-  const wilds = Object.values(spec.wilds).reduce((a, b) => a + b, 0);
+    p.zero +
+    p.numbers * 9 +
+    p.drawTwo +
+    p.skip +
+    p.reverse +
+    p.drawFour +
+    p.skipEveryone +
+    p.discardAll;
+  const wilds = Object.values(spec.wilds).reduce((a, b) => a + (b ?? 0), 0);
   return perColor * spec.colors.length + wilds;
 }
 
@@ -92,7 +111,8 @@ export function buildDeck(spec: DeckSpec = DEFAULT_DECK_SPEC): Card[] {
   };
 
   for (const color of spec.colors) {
-    for (let rank = 0; rank <= 9; rank++) {
+    for (let i = 0; i < spec.perColor.zero; i++) push('number', color, 0);
+    for (let rank = 1; rank <= 9; rank++) {
       for (let i = 0; i < spec.perColor.numbers; i++) push('number', color, rank);
     }
     for (let i = 0; i < spec.perColor.drawTwo; i++) push('drawTwo', color);
@@ -103,8 +123,8 @@ export function buildDeck(spec: DeckSpec = DEFAULT_DECK_SPEC): Card[] {
     for (let i = 0; i < spec.perColor.discardAll; i++) push('discardAll', color);
   }
 
-  for (const [kind, count] of Object.entries(spec.wilds) as [CardKind, number][]) {
-    for (let i = 0; i < count; i++) push(kind);
+  for (const [kind, count] of Object.entries(spec.wilds) as [CardKind, number | undefined][]) {
+    for (let i = 0; i < (count ?? 0); i++) push(kind);
   }
 
   return cards;

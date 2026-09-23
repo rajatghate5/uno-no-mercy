@@ -56,7 +56,7 @@ That is what the Dockerfile does, so a deployment is a single container.
 | `packages/web/src/game/` | Game controllers — **no Three.js** |
 | `packages/web/src/scene/` | Everything WebGL: card art, meshes, layout, animation |
 | `packages/web/src/ui/` | The HTML layer: menus, lobby, HUD, chat |
-| `config/deck.yml` | Deck composition — **see Task 0 below** |
+| `config/deck.yml` | Deck composition — the single source of truth |
 
 ## Architecture
 
@@ -99,19 +99,47 @@ That is the payoff for keeping game logic free of its presentation, and
 `architecture.test.ts` enforces it: controllers may not import Three, and the
 engine may not import anything at all.
 
-## ⚠ Task 0 — verify the deck
+## The deck
 
-`config/deck.yml` is the single source of truth for the deck, and the engine
-refuses to start unless the counts sum to the declared total.
+168 cards. **23 distinct card types**, verified against
+[open-mercy.com's full breakdown](https://open-mercy.com/rules/cards/).
 
-**Those counts are a reconstruction, not a verified fact.** No public source
-publishes an authoritative per-type breakdown — the UNO Wiki, gamerules.com,
-unorules.com, unonomercyrules.com, unoregler.com and editioncards.com all state
-"168 cards" and stop. The most specific source found confirms only: numbers 0–9
-×2 per colour, Draw 2 ×3, Draw 4 ×2, Skip ×3, Skip Everyone ×2 per colour.
-Reverse, Discard All and the wild split are inferred to reach 168.
+**Per colour (37 × 4 = 148)**
 
-**Count the physical deck and fix that file.** Nothing else needs to change.
+| Card | Per colour | In deck |
+|------|-----------:|--------:|
+| `0` | 1 | 4 |
+| `1`–`9` | 2 each | 72 |
+| Draw 2 | 3 | 12 |
+| Skip | 3 | 12 |
+| Reverse | 3 | 12 |
+| Draw 4 (coloured) | 3 | 12 |
+| Skip Everyone | 3 | 12 |
+| Discard All | 3 | 12 |
+
+**Wilds (5 types × 4 = 20)** — Wild, Wild Draw 6, Wild Draw 10,
+Wild Reverse Draw 4, Wild Color Roulette.
+
+Two things worth knowing:
+
+- **`0` is deliberately rarer than every other rank** — one per colour, not
+  two. It is the card that makes everyone pass their whole hand along.
+- **There is no plain Wild Draw 4.** No Mercy has a *coloured* +4 in each suit
+  and a *Wild Reverse* Draw 4, but no colourless plain +4.
+
+`config/deck.yml` is the single source of truth, and the engine refuses to start
+unless the counts sum to the declared total. Run `bun run deck` to print the
+composition.
+
+> **This was wrong for most of the project's life.** The original spec was a
+> reconstruction built from sources that all say "168 cards" and stop, and
+> **seven of its fourteen counts were wrong**: `0` appeared twice per colour,
+> Draw 4 / Skip Everyone / Discard All were too few, Wild Draw 6 and Color
+> Roulette were doubled, and four plain Wild Draw 4s were invented outright.
+>
+> It summed to exactly 168, so nothing ever crashed and every test passed. That
+> is precisely why a total is not a verification. `rules.test.ts` now asserts
+> every per-type count.
 
 ## The rules, as implemented
 
@@ -153,10 +181,11 @@ the game.
 ## Development
 
 ```bash
-bun test              # 87 tests
+bun test              # 88 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups
+bun run deck          # print the deck composition
 ```
 
 ### The test that actually finds bugs
@@ -177,9 +206,9 @@ its seed — paste it into a test and debug deterministically.
 Verified by `bun run bench` (2v2, seats rotated, 2000 games each):
 
 ```
-hard   vs easy    58.4%
-medium vs easy    54.8%
-hard   vs medium  59.0%
+hard   vs easy    67.0%
+medium vs easy    61.2%
+hard   vs medium  54.4%
 ```
 
 An early `medium` scored **49.5%** against easy — a coin flip — because it used

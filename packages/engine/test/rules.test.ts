@@ -28,6 +28,43 @@ describe('deck', () => {
     expect(() => buildDeck(bad)).toThrow(DeckSpecError);
   });
 
+  test('the composition matches the verified No Mercy deck', () => {
+    // Locked down after finding SEVEN of fourteen counts wrong. Both the old
+    // and new specs summed to 168, so the total alone never caught it - only
+    // a per-type assertion can.
+    const deck = buildDeck();
+    const count = (fn: (c: Card) => boolean) => deck.filter(fn).length;
+
+    // Numbers: 0 is rarer than the rest - one per colour, not two.
+    expect(count((c) => c.kind === 'number' && c.rank === 0)).toBe(4);
+    for (let rank = 1; rank <= 9; rank++) {
+      expect(count((c) => c.kind === 'number' && c.rank === rank)).toBe(8);
+    }
+    expect(count((c) => c.kind === 'number')).toBe(76);
+
+    // Coloured actions: three of each, per colour.
+    for (const kind of ['drawTwo', 'skip', 'reverse', 'drawFour', 'skipEveryone', 'discardAll']) {
+      expect(count((c) => c.kind === kind)).toBe(12);
+    }
+
+    // Wilds: five types, four each.
+    for (const kind of [
+      'wild',
+      'wildDrawSix',
+      'wildDrawTen',
+      'wildReverseDrawFour',
+      'wildColorRoulette',
+    ]) {
+      expect(count((c) => c.kind === kind)).toBe(4);
+    }
+
+    // No Mercy has a COLOURED +4 and a Wild Reverse Draw 4, but no plain
+    // colourless +4. An earlier spec invented four of them.
+    expect(count((c) => c.kind === 'wildDrawFour')).toBe(0);
+
+    expect(deck.length).toBe(168);
+  });
+
   test('every card has a unique id', () => {
     const deck = buildDeck();
     expect(new Set(deck.map((c) => c.id)).size).toBe(deck.length);
