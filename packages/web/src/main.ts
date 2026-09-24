@@ -20,6 +20,7 @@ import { resolveServer } from './game/serverUrl.js';
 import { Store } from './game/store.js';
 import type { PlayableGame } from './game/types.js';
 import { warmCardArt } from './scene/cardArt.js';
+import { AttractScene } from './scene/attract.js';
 import { createStage, webglAvailable } from './scene/table.js';
 import { TableView } from './scene/tableView.js';
 import {
@@ -92,6 +93,7 @@ try {
   fatal('The table failed to start', `WebGL reported: ${String(e)}`);
 }
 const view = new TableView(stage.scene);
+const attract = new AttractScene(stage.scene);
 const screens = new Screens(screenLayer);
 const store = new Store();
 const sound = new Sound(localStorage.getItem('uno:muted') !== '1');
@@ -121,6 +123,15 @@ function frame(now: number) {
   const dt = now - last;
   last = now;
   view.animator.update(dt);
+  // Scenery runs whenever the table is empty, which is every menu, the lobby
+  // and the stats screen - no explicit start/stop at each transition to get
+  // out of step with.
+  const wantScenery = !view.hasCards;
+  if (wantScenery !== attract.active) {
+    if (wantScenery) attract.start();
+    else attract.stop();
+  }
+  attract.update(dt);
   positionSeats();
   stage.renderer.render(stage.scene, stage.camera);
   requestAnimationFrame(frame);

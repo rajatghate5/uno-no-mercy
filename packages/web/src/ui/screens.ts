@@ -267,7 +267,7 @@ export class Screens {
                 name = (e.target as HTMLInputElement).value;
               },
             }),
-            el('p', { class: 'hint', text: `Server: ${opts.serverUrl}` }),
+            serverChip(opts.serverUrl),
           ]),
         );
       }
@@ -741,6 +741,28 @@ function houseRuleControls(
   panel.open = open;
   panel.addEventListener('toggle', () => onToggleOpen(panel.open));
   return panel;
+}
+
+/**
+ * Which server this client will talk to, said the way a player would say it.
+ *
+ * This used to print the raw `wss://host` address as a hint under the name
+ * field - correct, and exactly the kind of thing that makes a game look like
+ * somebody's dev build. The scheme is noise; the host is the only part anyone
+ * would ever read, and a green dot says the rest.
+ */
+function serverChip(url: string): HTMLElement {
+  let host = url;
+  try {
+    host = new URL(url).host;
+  } catch {
+    // Not a parseable URL: show it as given rather than swallowing it.
+  }
+  return el('div', { class: 'server-chip' }, [
+    el('span', { class: 'dot' }),
+    el('span', { text: 'Playing on ' }),
+    el('span', { class: 'host', text: host }),
+  ]);
 }
 
 /** One-line summary of any non-standard rules, for players who cannot edit. */

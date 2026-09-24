@@ -59,6 +59,11 @@ export class TableView {
     scene.add(this.root);
   }
 
+  /** Is anything actually on the table? Drives whether the menus need scenery. */
+  get hasCards(): boolean {
+    return this.held.size > 0;
+  }
+
   dispose(): void {
     for (const { mesh } of this.held.values()) this.root.remove(mesh);
     this.held.clear();
