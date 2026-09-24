@@ -7,14 +7,28 @@ knocks out anyone who reaches 25 cards.
 Real 3D cards on a felt table — Three.js, WebGL, actual shadows. Play solo
 against bots, or host a room and share a four-character code.
 
-## Quick start
+## Play it
+
+### → **https://rajatghate5.github.io/uno-no-mercy/**
+
+Nothing to install, nothing to run. It opens in any modern browser, desktop or
+phone, and starts immediately.
+
+That deploy is the **solo-vs-bots** build. GitHub Pages serves files; it cannot
+run a WebSocket server, so Host / Join / Spectate are shown but disabled there,
+with the reason on screen. Multiplayer needs a server — see
+[Playing with friends](#playing-with-friends).
+
+## Running it yourself
+
+You only need [Bun](https://bun.sh) 1.4+ to *develop* or *host* the game.
+Playing it needs neither Bun nor a clone — just the link above.
 
 ```bash
+curl -fsSL https://bun.sh/install | bash   # once
 bun install
-bun run dev          # http://localhost:5173
+bun run dev                                # http://localhost:5173
 ```
-
-Requires [Bun](https://bun.sh) 1.4+ (`curl -fsSL https://bun.sh/install | bash`).
 
 ### Hosting
 
@@ -212,7 +226,8 @@ the game.
 
 `.github/workflows/pages.yml` builds and publishes on every push to `main`.
 Enable it once: **Settings → Pages → Source → GitHub Actions**. The site lands
-at `https://<user>.github.io/<repo>/`.
+at `https://<user>.github.io/<repo>/` — for this repo,
+<https://rajatghate5.github.io/uno-no-mercy/>.
 
 **Pages serves static files only — it cannot run the WebSocket server.** The
 workflow therefore ships the solo-vs-bots game, and the client hides the online
@@ -229,6 +244,14 @@ Variables. The next deploy picks it up.
 > insecure WebSocket — the browser blocks it as mixed content — so a `ws://`
 > address on Pages is the same as no server at all. `resolveServer()` treats it
 > that way on purpose, and `serverUrl.test.ts` pins the behaviour.
+
+> **Only point `UNO_SERVER` at an address that will outlive the build.** It is
+> baked in at build time, so a `cloudflared tunnel --url` address — which
+> changes every restart and dies with the terminal — leaves the *published*
+> site permanently dialling a host that no longer exists. Every visitor then
+> gets a connection error on Host and Join, long after the tunnel is gone.
+> A tunnel is fine for testing from `bun run dev`; it is not a deploy target.
+> Leave the variable unset for a solo-only Pages site, which fails honestly.
 
 ### One container — game + client on one URL (recommended for multiplayer)
 
@@ -265,7 +288,7 @@ see `resolveServer()`.
 ## Development
 
 ```bash
-bun test              # 116 tests
+bun test              # 119 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups

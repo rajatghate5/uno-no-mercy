@@ -93,7 +93,13 @@ export class NetworkGame {
     ws.onerror = () => {
       if (this.closedByUs) return;
       this.status = 'error';
-      this.error = this.error ?? `Cannot reach ${this.opts.url}. Is the server running?`;
+      // Two very different causes land here: no server started locally, and a
+      // server address baked into a deployed build that has since gone away.
+      // Name the escape hatch, because solo play needs no server at all.
+      this.error =
+        this.error ??
+        `The game server at ${this.opts.url} is not responding. ` +
+          `It may be offline. Playing against bots needs no server and still works.`;
       this.emit();
     };
 
