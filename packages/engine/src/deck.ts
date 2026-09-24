@@ -13,7 +13,11 @@ export interface DeckSpec {
   total: number;
   colors: readonly Color[];
   perColor: {
-    /** 0 is rarer than the other ranks: one per colour, not two. */
+    /**
+     * Copies of the 0 in each colour. Standard UNO has one; No Mercy has two,
+     * like every other rank. Kept separate from `numbers` so a deck.yml can
+     * express either.
+     */
     zero: number;
     /** Copies of EACH rank 1-9. */
     numbers: number;
@@ -26,8 +30,9 @@ export interface DeckSpec {
     discardAll: number;
   };
   /**
-   * Wild counts. Partial on purpose: No Mercy has no plain Wild Draw 4, so
-   * that key is simply absent rather than set to zero.
+   * Wild counts. Partial on purpose: No Mercy has neither a plain Wild nor a
+   * plain Wild Draw 4, so those keys are simply absent. The kinds still exist
+   * in the type, so a custom deck.yml can add them back.
    */
   wilds: Partial<{
     wild: number;
@@ -42,16 +47,25 @@ export interface DeckSpec {
 /**
  * Default composition. Mirrors config/deck.yml.
  *
- * 37 per colour x 4 = 148, plus 20 wilds = 168.
+ *   38 per colour x 4 = 152, plus 16 wilds = 168.
  *
- * Note what is NOT here: a plain Wild Draw 4. No Mercy has a COLOURED +4 in
- * each suit and a Wild Reverse Draw 4, and no colourless plain +4.
+ * Verified against Mattel's own instruction sheet for HWV18 (linked in the
+ * README), not against a rules-aggregator site — several of those disagree
+ * with each other and two of them publish breakdowns that do not sum to 168.
+ *
+ * Note what is NOT here:
+ *
+ *   - a plain **Wild**. Every wild in No Mercy has teeth. The instruction
+ *     sheet's own scoring table lists exactly four wild cards, and a plain
+ *     Wild is not among them.
+ *   - a plain **Wild Draw 4**. There is a COLOURED +4 in each suit and a
+ *     Wild Reverse Draw 4, and no colourless plain +4.
  */
 export const DEFAULT_DECK_SPEC: DeckSpec = {
   total: 168,
   colors: COLORS,
   perColor: {
-    zero: 1,
+    zero: 2,
     numbers: 2, // each of ranks 1-9
     drawTwo: 3,
     skip: 3,
@@ -61,7 +75,6 @@ export const DEFAULT_DECK_SPEC: DeckSpec = {
     discardAll: 3,
   },
   wilds: {
-    wild: 4,
     wildDrawSix: 4,
     wildDrawTen: 4,
     wildReverseDrawFour: 4,

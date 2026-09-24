@@ -29,28 +29,28 @@ describe('deck', () => {
     expect(() => buildDeck(bad)).toThrow(DeckSpecError);
   });
 
-  test('the composition matches the verified No Mercy deck', () => {
-    // Locked down after finding SEVEN of fourteen counts wrong. Both the old
-    // and new specs summed to 168, so the total alone never caught it - only
-    // a per-type assertion can.
+  test('the composition matches Mattel\'s instruction sheet', () => {
+    // Locked down per-type on purpose. Three different wrong specs have been
+    // in this file, and every one of them summed to exactly 168 - the total
+    // alone can never catch a miscount, only a per-type assertion can.
+    //
+    // Source of truth: service.mattel.com/instruction_sheets/HVW18-Eng.pdf
     const deck = buildDeck();
     const count = (fn: (c: Card) => boolean) => deck.filter(fn).length;
 
-    // Numbers: 0 is rarer than the rest - one per colour, not two.
-    expect(count((c) => c.kind === 'number' && c.rank === 0)).toBe(4);
-    for (let rank = 1; rank <= 9; rank++) {
+    // Numbers: TWO of every rank including 0, unlike standard UNO.
+    for (let rank = 0; rank <= 9; rank++) {
       expect(count((c) => c.kind === 'number' && c.rank === rank)).toBe(8);
     }
-    expect(count((c) => c.kind === 'number')).toBe(76);
+    expect(count((c) => c.kind === 'number')).toBe(80);
 
     // Coloured actions: three of each, per colour.
     for (const kind of ['drawTwo', 'skip', 'reverse', 'drawFour', 'skipEveryone', 'discardAll']) {
       expect(count((c) => c.kind === kind)).toBe(12);
     }
 
-    // Wilds: five types, four each.
+    // Wilds: four types, four each.
     for (const kind of [
-      'wild',
       'wildDrawSix',
       'wildDrawTen',
       'wildReverseDrawFour',
@@ -59,10 +59,15 @@ describe('deck', () => {
       expect(count((c) => c.kind === kind)).toBe(4);
     }
 
-    // No Mercy has a COLOURED +4 and a Wild Reverse Draw 4, but no plain
-    // colourless +4. An earlier spec invented four of them.
+    // Neither a plain Wild nor a plain colourless +4 exists in No Mercy. The
+    // instruction sheet's scoring table names exactly four wild cards, and
+    // earlier specs here invented both of these.
+    expect(count((c) => c.kind === 'wild')).toBe(0);
     expect(count((c) => c.kind === 'wildDrawFour')).toBe(0);
 
+    // 38 per colour x 4 = 152 coloured, + 16 wilds.
+    expect(count((c) => c.color !== undefined)).toBe(152);
+    expect(count((c) => c.color === undefined)).toBe(16);
     expect(deck.length).toBe(168);
   });
 
@@ -169,7 +174,8 @@ describe('rule variants', () => {
       discardPile: [num('red', 5)],
       activeColor: 'red',
       drawPile: [num('red', 3), num('blue', 1), num('blue', 2), num('blue', 4)],
-      rules: { drawUntilPlayable: true },
+      // forcePlay off, so the drawn red3 stays in hand and can be counted.
+      rules: { drawUntilPlayable: true, forcePlay: false },
     });
     const r = reduce(s, { type: 'draw', player: 'a' });
     // Drew blue4, blue2, blue1, then red3 - four cards.
@@ -183,7 +189,7 @@ describe('rule variants', () => {
       discardPile: [num('red', 5)],
       activeColor: 'red',
       drawPile: [num('blue', 9), num('red', 7)],
-      rules: { drawUntilPlayable: true },
+      rules: { drawUntilPlayable: true, forcePlay: false },
     });
     const r = reduce(s, { type: 'draw', player: 'a' });
     expect(r.state.players[0]!.hand).toHaveLength(1);
@@ -286,10 +292,37 @@ describe('rule variants', () => {
     expect(r.state.discardPile.at(-1)!.rank).toBe(3);
   });
 
+  test("stackMode 'sum' measures against the running total, not the last card", () => {
+    // unorules.com's reading: after +2 then +4 the next player owes 6, so only
+    // a +6 or +10 continues it. Under the printed rule a +4 would be enough.
+    const plusFour = card('drawFour', 'blue');
+    const plusSix = card('wildDrawSix');
+    const s = state({
+      players: [player('a', [plusFour, plusSix, num('red', 1)]), player('b', [])],
+      pendingDraw: 6,
+      stackValue: 4,
+      rules: { stackMode: 'sum' },
+    });
+    expect(legalMoves(s, 'a').map((c) => c.id)).toEqual([plusSix.id]);
+
+    // Same position, printed rule: the +4 matches the last card and is legal.
+    const printed = state({
+      players: [player('a', [plusFour, plusSix, num('red', 1)]), player('b', [])],
+      pendingDraw: 6,
+      stackValue: 4,
+      rules: { stackMode: 'escalating' },
+    });
+    expect(legalMoves(printed, 'a').map((c) => c.id)).toEqual([plusFour.id, plusSix.id]);
+  });
+
   test('default rules keep the real No Mercy behaviour', () => {
     expect(DEFAULT_RULES.stackMode).toBe('escalating');
-    expect(DEFAULT_RULES.drawUntilPlayable).toBe(false);
-    expect(DEFAULT_RULES.forcePlay).toBe(false);
+    // Both of these are printed rules, not house rules: "you MUST draw cards
+    // from the Draw Pile UNTIL YOU DRAW A CARD YOU CAN PLAY. Then, play that
+    // card." They were shipped defaulting off, which quietly made the game
+    // classic UNO's draw-one-and-pass.
+    expect(DEFAULT_RULES.drawUntilPlayable).toBe(true);
+    expect(DEFAULT_RULES.forcePlay).toBe(true);
   });
 });
 
@@ -420,6 +453,44 @@ describe('special cards', () => {
     expect(r.state.phase.type).toBe('chooseColor');
   });
 
+  test('Wild Reverse Draw 4 backfires onto its player with only two left', () => {
+    // "With just two players this card skips the other player and makes YOU
+    // draw 4 cards!" The turn must therefore stay put.
+    const wrd4 = card('wildReverseDrawFour');
+    const s = state({
+      players: [player('a', [wrd4, num('blue', 1)]), player('b', [num('green', 2)])],
+      activeColor: 'red',
+    });
+    const played = reduce(s, { type: 'play', player: 'a', cardId: wrd4.id });
+    const colored = reduce(played.state, { type: 'chooseColor', player: 'a', color: 'blue' });
+
+    expect(colored.state.pendingDraw).toBe(4);
+    // Still a's problem, not b's.
+    expect(colored.state.players[colored.state.turn]!.id).toBe('a');
+    expect(colored.state.phase.type).toBe('play');
+  });
+
+  test('a backfired Wild Reverse Draw 4 can be stacked back across the table', () => {
+    // "You may use the stacking rule to send the penalty back to the other
+    // player." A +4 answers a +4, so the plain coloured +4 is enough.
+    const wrd4 = card('wildReverseDrawFour');
+    const plusFour = card('drawFour', 'blue');
+    const s = state({
+      // The filler matters: with only wrd4 and the +4 in hand, playing the +4
+      // empties the hand and a WINS instead of stacking.
+      players: [player('a', [wrd4, plusFour, num('red', 1)]), player('b', [num('green', 2)])],
+      activeColor: 'red',
+    });
+    const played = reduce(s, { type: 'play', player: 'a', cardId: wrd4.id });
+    const colored = reduce(played.state, { type: 'chooseColor', player: 'a', color: 'blue' });
+    // A live stack allows only draw cards, so the red 1 is not an option.
+    expect(legalMoves(colored.state, 'a').map((c) => c.id)).toEqual([plusFour.id]);
+
+    const sent = reduce(colored.state, { type: 'play', player: 'a', cardId: plusFour.id });
+    expect(sent.state.pendingDraw).toBe(8);
+    expect(sent.state.players[sent.state.turn]!.id).toBe('b');
+  });
+
   test('Color Roulette makes the victim draw until the named colour appears', () => {
     const roulette = card('wildColorRoulette');
     const drawPile: Card[] = [num('green', 1), num('red', 2), num('blue', 3), num('blue', 4)];
@@ -428,14 +499,19 @@ describe('special cards', () => {
       // pop() takes from the end, so 'b' draws blue4, blue3, red2, then green1.
       drawPile,
     });
+    // The player who plays it does NOT name a colour - the victim does, and
+    // that goes straight to the roulette phase.
     const played = reduce(s, { type: 'play', player: 'a', cardId: roulette.id });
-    const colored = reduce(played.state, { type: 'chooseColor', player: 'a', color: 'red' });
-    expect(colored.state.phase).toMatchObject({ type: 'chooseRouletteColor', victim: 'b' });
+    expect(played.state.phase).toMatchObject({ type: 'chooseRouletteColor', victim: 'b' });
 
-    const done = reduce(colored.state, { type: 'chooseRouletteColor', player: 'b', color: 'green' });
+    const done = reduce(played.state, { type: 'chooseRouletteColor', player: 'b', color: 'green' });
     // Drew until green appeared: blue4, blue3, red2, green1 => 4 cards.
     expect(done.state.players[1]!.hand).toHaveLength(4);
     expect(done.state.players[1]!.hand.at(-1)!.color).toBe('green');
+    // The colour the victim named is the one left in play.
+    expect(done.state.activeColor).toBe('green');
+    // And they lose their turn, so play resumes with 'c'.
+    expect(done.state.players[done.state.turn]!.id).toBe('c');
   });
 
   test('Color Roulette terminates instead of hanging when the deck runs dry', () => {
@@ -446,9 +522,8 @@ describe('special cards', () => {
       discardPile: [num('red', 5)],
     });
     const played = reduce(s, { type: 'play', player: 'a', cardId: roulette.id });
-    const colored = reduce(played.state, { type: 'chooseColor', player: 'a', color: 'red' });
     // No green exists anywhere; this must stop, not loop forever.
-    const done = reduce(colored.state, { type: 'chooseRouletteColor', player: 'b', color: 'green' });
+    const done = reduce(played.state, { type: 'chooseRouletteColor', player: 'b', color: 'green' });
     expect(done.state.phase.type).not.toBe('chooseRouletteColor');
   });
 });
@@ -460,6 +535,9 @@ describe('draw pile', () => {
       players: [player('a', []), player('b', [])],
       drawPile: [],
       discardPile: [...pile(12, 'green'), top],
+      // This test is about the pile, not about what happens to the card, so
+      // keep the drawn card in hand rather than letting forcePlay play it.
+      rules: { drawUntilPlayable: false, forcePlay: false },
     });
     const r = reduce(s, { type: 'draw', player: 'a' });
     expect(r.events.some((e) => e.type === 'reshuffled')).toBe(true);

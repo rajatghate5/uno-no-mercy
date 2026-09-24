@@ -183,6 +183,22 @@ function checkFinished(d: Draft, idx: number, events: GameEvent[]): boolean {
 }
 
 /**
+ * Does this card's penalty land back on the player who played it?
+ *
+ * Only one card does: Wild Reverse Draw 4 with exactly two players left. From
+ * the instruction sheet: "With just two players this card skips the other
+ * player and makes YOU draw 4 cards! You may use the stacking rule to send
+ * the penalty back to the other player."
+ *
+ * So the turn does NOT move on. The player who played it is now facing their
+ * own +4 and must either take it or stack a +4-or-higher on top, which is
+ * what sends it across the table.
+ */
+function backfires(d: Draft, card: Card): boolean {
+  return card.kind === 'wildReverseDrawFour' && activeCount(d) === 2;
+}
+
+/**
  * Apply the effect of a card that has already been moved to the discard pile.
  * Assumes `idx` is the player who played it.
  */
@@ -202,6 +218,12 @@ function applyCardEffect(d: Draft, idx: number, card: Card, events: GameEvent[])
 
     if (isWild(card.kind)) {
       d.phase = { type: 'chooseColor', card };
+      return;
+    }
+    // Wild Reverse Draw 4 backfires with two players - see backfires().
+    if (backfires(d, card)) {
+      d.phase = { type: 'play' };
+      events.push({ type: 'turnChanged', player: player.id });
       return;
     }
     advance(d, events);
@@ -271,8 +293,20 @@ function applyCardEffect(d: Draft, idx: number, card: Card, events: GameEvent[])
       return;
     }
 
-    case 'wild':
     case 'wildColorRoulette': {
+      // The player who plays this does NOT pick a colour - the victim does,
+      // and the colour they name is both what they dig for and what ends up
+      // in play. Instruction sheet: "The next player chooses a color. After
+      // that, they must reveal cards one at a time from the Draw Pile until
+      // they get a card of that color."
+      const victimIdx = nextActive(d, d.turn);
+      d.phase = { type: 'chooseRouletteColor', victim: d.players[victimIdx]!.id };
+      return;
+    }
+
+    case 'wild': {
+      // Not in the standard No Mercy deck, but the deck is config-driven and
+      // a custom one may add plain Wilds back.
       d.phase = { type: 'chooseColor', card };
       return;
     }
@@ -367,9 +401,11 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
       d.activeColor = action.color;
       events.push({ type: 'colorChosen', player: d.players[idx]!.id, color: action.color });
 
-      if (phase.card.kind === 'wildColorRoulette') {
-        const victimIdx = nextActive(d, d.turn);
-        d.phase = { type: 'chooseRouletteColor', victim: d.players[victimIdx]!.id };
+      // A two-player Wild Reverse Draw 4 leaves the turn where it is, so the
+      // colour choice must not hand it over.
+      if (backfires(d, phase.card)) {
+        d.phase = { type: 'play' };
+        events.push({ type: 'turnChanged', player: d.players[idx]!.id });
         break;
       }
       advance(d, events);
@@ -378,6 +414,9 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
 
     case 'chooseRouletteColor': {
       const victimIdx = d.players.findIndex((p) => p.id === action.player);
+      // The colour the victim names is the one left in play - the Roulette
+      // card itself is a wild and carries no colour of its own.
+      d.activeColor = action.color;
       events.push({ type: 'rouletteStarted', victim: action.player, color: action.color });
       // Draw until a card of the named colour appears, or the deck runs dry.
       let guard = 0;

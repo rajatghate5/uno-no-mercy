@@ -247,7 +247,15 @@ describe('gameplay', () => {
 
   test('a legal move advances the game', async () => {
     const host = await Client.connect();
-    host.send({ t: 'create', name: 'host', settings: { botCount: 2 }, version: V });
+    // Plain draw-one rules: this test is about the server relaying an action,
+    // and the printed No Mercy draw rule (draw until playable, then play it)
+    // makes the resulting hand size depend on the shuffle.
+    host.send({
+      t: 'create',
+      name: 'host',
+      settings: { botCount: 2, rules: { drawUntilPlayable: false, forcePlay: false } },
+      version: V,
+    });
     const welcome = await host.wait('welcome');
     host.send({ t: 'start' });
     const first = await host.wait('state');

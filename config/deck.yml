@@ -3,12 +3,16 @@
 # ============================================================================
 # The engine reads this and refuses to boot unless the counts sum to `total`.
 #
-# Verified against open-mercy.com's full 168-card breakdown. Its stated
-# subtotals contain two typos ("38 per colour" for a list of 37, "16 wilds"
-# for a list of 20), but the ITEMS it lists sum to exactly 168 and agree with
-# its own per-category totals (76 numbers, 72 coloured actions).
+# SOURCE: Mattel's own instruction sheet for HWV18.
+#   https://service.mattel.com/instruction_sheets/HVW18-Eng.pdf
+#   (note the typo in Mattel's filename: HVW, not HWV)
 #
-# 37 per colour x 4 = 148, plus 20 wilds = 168.
+# Do not "correct" this file against a rules-aggregator site. Several of them
+# disagree with each other, and two publish breakdowns whose own numbers do
+# not sum to 168. The instruction sheet is the only authority, and its scoring
+# table is the tell for the wild list: it names exactly four wild cards.
+#
+# 38 per colour x 4 = 152, plus 16 wilds = 168.
 # ============================================================================
 
 total: 168
@@ -17,9 +21,10 @@ colors: [red, yellow, green, blue]
 
 # How many of each card, PER COLOUR. Multiplied by 4 colours.
 perColor:
-  # 0 is deliberately rarer than the other ranks - one per colour, not two.
-  # It is the card that makes everyone pass their whole hand along.
-  zero: 1
+  # TWO zeros per colour, the same as every other rank. Standard UNO has one
+  # per colour; No Mercy does not, which matters because the 0 is the card
+  # that makes everyone pass their whole hand along.
+  zero: 2
   # Copies of EACH rank 1-9, so 9 x 2 = 18 cards.
   numbers: 2
 
@@ -30,18 +35,23 @@ perColor:
   drawFour: 3
   skipEveryone: 3
   discardAll: 3
-  # per-colour subtotal: 1 + 18 + 3 + 3 + 3 + 3 + 3 + 3 = 37
-  # x 4 colours = 148
+  # per-colour subtotal: 2 + 18 + 3 + 3 + 3 + 3 + 3 + 3 = 38
+  # x 4 colours = 152
 
-# Wild cards, not tied to a colour. 5 types x 4 = 20.
+# Wild cards, not tied to a colour. 4 types x 4 = 16.
 #
-# NOTE: there is no plain "Wild Draw 4" in No Mercy. The deck has a coloured
-# +4 in each suit (above) and a Wild Reverse Draw 4 — but no colourless plain
-# +4. An earlier version of this file invented four of them.
+# NOTE what is absent, both deliberately:
+#
+#   wild          - there is no plain colour-change Wild in No Mercy. Every
+#                   wild in the deck has a penalty attached.
+#   wildDrawFour  - no colourless plain +4 either. The deck has a COLOURED +4
+#                   in each suit (above) and a Wild Reverse Draw 4.
+#
+# Both kinds still exist in the engine, so a custom deck can add them back
+# here without a code change.
 wilds:
-  wild: 4
   wildDrawSix: 4
   wildDrawTen: 4
   wildReverseDrawFour: 4
   wildColorRoulette: 4
-  # subtotal: 20
+  # subtotal: 16

@@ -35,14 +35,17 @@ export interface HouseRules {
    * stack only gets worse. 'any' lets a +2 answer a +10, which makes stacks
    * survivable and sharply reduces eliminations.
    */
-  stackMode: 'escalating' | 'any';
+  stackMode: 'escalating' | 'sum' | 'any';
   /** 7 swaps hands with a player of your choice. */
   sevenSwap: boolean;
   /** 0 passes every hand in the direction of play. */
   zeroPass: boolean;
-  /** Draw until something is playable, instead of drawing exactly one card. */
+  /**
+   * Draw until something is playable, instead of drawing exactly one card.
+   * A printed No Mercy rule, not a house rule - hence the default.
+   */
   drawUntilPlayable: boolean;
-  /** A drawn card that can be played is played for you automatically. */
+  /** A drawn card that can be played is played for you. Also a printed rule. */
   forcePlay: boolean;
 }
 
@@ -53,8 +56,8 @@ export const DEFAULT_HOUSE_RULES: HouseRules = {
   stackMode: 'escalating',
   sevenSwap: true,
   zeroPass: true,
-  drawUntilPlayable: false,
-  forcePlay: false,
+  drawUntilPlayable: true,
+  forcePlay: true,
 };
 
 /** Bounds enforced by the server. A hand limit below the deal is unplayable. */
@@ -138,7 +141,8 @@ export function cleanHouseRules(raw: unknown): HouseRules {
     // A limit at or below the deal would eliminate everyone on the first turn.
     handLimit: Math.max(handLimit, startingHand + 3),
     stacking: bool(r.stacking, DEFAULT_HOUSE_RULES.stacking),
-    stackMode: r.stackMode === 'any' ? 'any' : 'escalating',
+    stackMode:
+      r.stackMode === 'any' || r.stackMode === 'sum' ? r.stackMode : 'escalating',
     sevenSwap: bool(r.sevenSwap, DEFAULT_HOUSE_RULES.sevenSwap),
     zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
     drawUntilPlayable: bool(r.drawUntilPlayable, DEFAULT_HOUSE_RULES.drawUntilPlayable),

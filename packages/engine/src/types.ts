@@ -156,24 +156,36 @@ export interface RuleConfig {
   /**
    * How strict stacking is.
    *
-   * 'escalating' is the real No Mercy rule: your card must be equal or higher
-   * than the one played at you, so a stack only ever grows in severity.
-   * 'any' lets a +2 answer a +10, which makes stacks far easier to survive
-   * and dramatically lowers the elimination rate.
+   * 'escalating' is what Mattel's instruction sheet says: your card must equal
+   *   or exceed THE LAST CARD PLAYED. "This continues until someone can't play
+   *   a Draw Card that equals or exceeds the value of the last card played."
+   * 'sum' is the stricter reading published by unorules.com, where you must
+   *   equal or exceed the whole ACCUMULATED penalty. Stacks then die out fast,
+   *   because two cards in are already past +10.
+   * 'any' lets a +2 answer a +10. Not a real rule anywhere; it makes stacks
+   *   survivable and sharply cuts eliminations.
+   *
+   * The two sources genuinely disagree, so both are offered and the printed
+   * sheet wins the default.
    */
-  readonly stackMode: 'escalating' | 'any';
+  readonly stackMode: 'escalating' | 'sum' | 'any';
   /**
    * Draw until you get something playable, rather than drawing exactly one
-   * card and passing. A common house rule; it speeds the game up and makes
-   * hands grow in bursts.
+   * card and passing.
+   *
+   * This is the REAL No Mercy rule, not a house rule. The instruction sheet:
+   * "If you DO NOT HAVE a matching card, you MUST draw cards from the Draw
+   * Pile UNTIL YOU DRAW A CARD YOU CAN PLAY." Turning it off gives you
+   * classic UNO's draw-one-and-pass, which is why it stays configurable.
    */
   readonly drawUntilPlayable: boolean;
   /**
    * If the card you draw can be played, it is played for you immediately.
    *
-   * Removes the choice to sit on a freshly drawn card, which is why it pairs
-   * naturally with drawUntilPlayable - together they turn a draw into "keep
-   * going until something lands, then play it".
+   * Also the real rule - the same sentence finishes "Then, play that card."
+   * It pairs with drawUntilPlayable by design: together they turn a draw into
+   * "keep going until something lands, then play it", which is why both
+   * default on and why hands in No Mercy grow in bursts.
    */
   readonly forcePlay: boolean;
   /** Safety valve for the simulation harness; not a real UNO rule. */
@@ -187,7 +199,7 @@ export const DEFAULT_RULES: RuleConfig = {
   sevenSwapsHands: true,
   stackingEnabled: true,
   stackMode: 'escalating',
-  drawUntilPlayable: false,
-  forcePlay: false,
+  drawUntilPlayable: true,
+  forcePlay: true,
   maxTurns: 5000,
 };

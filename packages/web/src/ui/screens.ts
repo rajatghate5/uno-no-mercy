@@ -659,10 +659,13 @@ function houseRuleControls(
             choice(
               'Stack rule',
               rules.stackMode === 'escalating'
-                ? 'Must play equal or higher — the real No Mercy rule'
-                : 'Any draw card answers any other — far more survivable',
+                ? 'Beat the LAST card played — what the instruction sheet says'
+                : rules.stackMode === 'sum'
+                  ? 'Beat the whole running total — stacks die out after two cards'
+                  : 'Any draw card answers any other — far more survivable',
               [
-                { value: 'escalating' as const, label: 'Escalating' },
+                { value: 'escalating' as const, label: 'Last card' },
+                { value: 'sum' as const, label: 'Running total' },
                 { value: 'any' as const, label: 'Any' },
               ],
               rules.stackMode,
@@ -739,10 +742,13 @@ export function houseRuleSummary(rules: HouseRules): string {
   const parts: string[] = [`${rules.startingHand} cards`, `out at ${rules.handLimit}`];
   if (!rules.stacking) parts.push('no stacking');
   else if (rules.stackMode === 'any') parts.push('any-card stacking');
+  else if (rules.stackMode === 'sum') parts.push('beat-the-total stacking');
   if (!rules.sevenSwap) parts.push('no 7-swaps');
   if (!rules.zeroPass) parts.push('no 0-passes');
-  if (rules.drawUntilPlayable) parts.push('draw until playable');
-  if (rules.forcePlay) parts.push('force play');
+  // These two are printed rules and default on, so it is turning them OFF
+  // that is worth reporting.
+  if (!rules.drawUntilPlayable) parts.push('draw one only');
+  if (!rules.forcePlay) parts.push('no force play');
   return parts.join(' · ');
 }
 
