@@ -1,10 +1,16 @@
 /**
- * Deck construction, driven entirely by config/deck.yml.
+ * Deck construction.
  *
- * The composition is NOT hardcoded. `buildDeck` takes a DeckSpec so that
- * verifying the real deck (Task 0) is a config edit, never a code change.
- * It refuses to build a deck whose counts don't sum to the declared total,
- * which turns a silent miscount into a startup error.
+ * `buildDeck` takes a DeckSpec rather than baking the composition in, so a
+ * different deck is a value to pass, not a code change. It refuses to build
+ * one whose counts don't sum to the declared total, which turns a silent
+ * miscount into a startup error.
+ *
+ * config/deck.yml is the same composition in readable form, with the sources
+ * and the reasoning. Nothing loads it - the server would need a YAML parser
+ * and a file read on a path that differs per deploy - so DEFAULT_DECK_SPEC
+ * below and that file have to be changed together. The per-type assertions in
+ * rules.test.ts are what stop them drifting apart unnoticed.
  */
 
 import { COLORS, type Card, type CardKind, type Color } from './types.js';

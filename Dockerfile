@@ -18,6 +18,7 @@ RUN bun install --frozen-lockfile
 # --- build the client -------------------------------------------------------
 FROM deps AS build
 COPY tsconfig.json ./
+COPY config ./config
 COPY packages ./packages
 # Declare that the server will also serve this page, so the client talks to
 # its own origin. Without it an HTTPS deploy is indistinguishable from a
@@ -29,14 +30,17 @@ RUN cd packages/web && bunx vite build
 FROM base AS runtime
 ENV NODE_ENV=production
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY package.json tsconfig.json ./
-COPY config ./config
-COPY packages/engine   ./packages/engine
-COPY packages/bots     ./packages/bots
-COPY packages/protocol ./packages/protocol
-COPY packages/server   ./packages/server
-COPY --from=build /app/packages/web/dist ./packages/web/dist
+# Taken wholesale from the build stage, node_modules included.
+#
+# The runtime used to assemble itself: node_modules from `deps`, then each
+# package copied in separately from the context. That produced an image whose
+# node_modules/@uno/* entries did not resolve to the real sources, and the
+# server died on startup with "Cannot find module '@uno/protocol'" - a
+# workspace symlink laid down in a stage where the packages were nothing but
+# their package.json files.
+#
+# Copying one coherent tree costs some image size and cannot drift.
+COPY --from=build /app ./
 
 # Bun runs TypeScript directly, so the server has no build step to go stale.
 ENV PORT=4040
