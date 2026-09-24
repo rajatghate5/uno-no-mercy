@@ -1,0 +1,93 @@
+# Build the Docker image and prove the container actually serves a game.
+#
+# This exists because the image spent a long time unbuilt - Docker was not
+# running on the machine it was written on - while render.yaml pointed
+# straight at it. A blueprint deploy would have been the first time anyone
+# found out whether it worked, and the person finding out would have been
+# whoever was trying to start a game with their friends.
+#
+# GitHub runners have Docker. So the deploy target is now built and smoke
+# tested on every push, for free, before anyone relies on it.
+name: Docker image
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Loaded into the local daemon rather than pushed: this job is a test,
+      # not a release. Layer caching keeps it to a few seconds once warm.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: uno-no-mercy:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start the container
+        run: docker run -d --name uno -p 4040:4040 uno-no-mercy:ci
+
+      # A container that starts and then dies still "starts", so wait for the
+      # health endpoint rather than for the run command to return.
+      - name: Wait for /health
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4040/health >/dev/null; then
+              echo "healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::container never became healthy"
+          docker logs uno
+          exit 1
+
+      # The whole point of this image is that ONE url serves both halves.
+      # Check the client is really there, not just the socket server.
+      - name: Check the client is served
+        run: |
+          body=$(curl -fsS http://127.0.0.1:4040/)
+          echo "$body" | grep -q '<canvas id="stage">' \
+            || { echo "::error::index.html did not come back"; echo "$body" | head -20; exit 1; }
+          asset=$(echo "$body" | grep -oE '/assets/index-[^"]+\.js' | head -1)
+          [ -n "$asset" ] || { echo "::error::no built JS referenced"; exit 1; }
+          curl -fsS "http://127.0.0.1:4040$asset" >/dev/null \
+            || { echo "::error::built JS 404s at $asset"; exit 1; }
+          echo "client served, bundle at $asset"
+
+      # A room needs a working WebSocket, which is the one thing GitHub Pages
+      # cannot do and the entire reason this image exists.
+      - name: Check a room can be created over the socket
+        run: |
+          docker run --rm --network host oven/bun:1.4.2-alpine bun -e '
+            const ws = new WebSocket("ws://127.0.0.1:4040");
+            const fail = (m) => { console.error(m); process.exit(1); };
+            const timer = setTimeout(() => fail("no welcome within 10s"), 10000);
+            ws.onerror = (e) => fail("socket error: " + e.message);
+            ws.onopen = () => ws.send(JSON.stringify({
+              t: "create", name: "ci", settings: { botCount: 1 }, version: 1,
+            }));
+            ws.onmessage = (ev) => {
+              const msg = JSON.parse(ev.data);
+              if (msg.t === "welcome") {
+                clearTimeout(timer);
+                console.log("room created:", msg.code);
+                process.exit(0);
+              }
+              if (msg.t === "error") fail("server said: " + msg.message);
+            };
+          '
+
+      - name: Container logs
+        if: always()
+        run: docker logs uno
