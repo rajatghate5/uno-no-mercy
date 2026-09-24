@@ -11,10 +11,41 @@
 
 export type Cue = 'deal' | 'play' | 'draw' | 'bigHit' | 'eliminate' | 'win' | 'lose' | 'turn';
 
+/**
+ * Safari shipped Web Audio behind a vendor prefix for years and still exposes
+ * the prefixed constructor. Resolve it once rather than at every call site.
+ */
+function audioContextCtor(): typeof AudioContext | undefined {
+  const w = window as unknown as {
+    AudioContext?: typeof AudioContext;
+    webkitAudioContext?: typeof AudioContext;
+  };
+  return w.AudioContext ?? w.webkitAudioContext;
+}
+
 export class Sound {
   private ctx: AudioContext | null = null;
 
   constructor(public enabled = true) {}
+
+  /**
+   * Create the context if we can.
+   *
+   * Separated from resume() because WebKit is strict about WHERE this happens:
+   * a context constructed outside a user gesture starts suspended and stays
+   * that way, so the first construction has to ride on a real tap.
+   */
+  private ensure(): AudioContext | null {
+    if (this.ctx) return this.ctx;
+    const Ctor = audioContextCtor();
+    if (!Ctor) return null;
+    try {
+      this.ctx = new Ctor();
+    } catch {
+      return null;
+    }
+    return this.ctx;
+  }
 
   toggle(): boolean {
     this.enabled = !this.enabled;
@@ -22,21 +53,30 @@ export class Sound {
     return this.enabled;
   }
 
-  /** Call from a click/keydown handler so the context is allowed to start. */
+  /**
+   * Call from a click/keydown handler so the context is allowed to start.
+   *
+   * On iOS this must run INSIDE the gesture - a resume() scheduled from a
+   * promise or a timeout is ignored, which is how a build ends up silent on
+   * iPhone while working everywhere else.
+   */
   resume(): void {
-    try {
-      this.ctx ??= new AudioContext();
-      if (this.ctx.state === 'suspended') void this.ctx.resume();
-    } catch {
-      // No Web Audio: the game is perfectly playable silent.
-    }
+    const ctx = this.ensure();
+    if (!ctx) return; // No Web Audio: the game is perfectly playable silent.
+    if (ctx.state === 'suspended') void ctx.resume();
   }
 
   play(cue: Cue): void {
     if (!this.enabled) return;
     try {
-      this.ctx ??= new AudioContext();
-      if (this.ctx.state === 'suspended') return; // still awaiting a gesture
+      const ctx = this.ensure();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        // Ask once more - Safari sometimes suspends again after a tab switch -
+        // but drop this cue rather than queue it.
+        void ctx.resume();
+        return;
+      }
       switch (cue) {
         case 'deal':
           return this.noise(0.05, 1400, 0.1);

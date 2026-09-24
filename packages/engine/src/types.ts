@@ -136,6 +136,14 @@ export interface GameState {
   readonly stackValue: number;
 
   readonly phase: Phase;
+  /**
+   * A player who is down to one card and has not called UNO yet.
+   *
+   * Public information - everyone can see the hand counts anyway - and the
+   * whole point is that opponents get the chance to catch them. Cleared when
+   * they call, when someone catches them, or when their next turn comes round.
+   */
+  readonly unoRisk: PlayerId | null;
   /** Seeded PRNG state. Advanced on every shuffle/draw. Never Math.random(). */
   readonly rng: number;
   readonly rules: RuleConfig;
@@ -188,6 +196,13 @@ export interface RuleConfig {
    * default on and why hands in No Mercy grow in bursts.
    */
   readonly forcePlay: boolean;
+  /**
+   * Calling UNO on one card, and the 2-card penalty for being caught out.
+   *
+   * On by default - it is a printed rule - but the timing window has to be
+   * interpreted for a digital table. See `unoRisk` in reduce.ts.
+   */
+  readonly unoCalls: boolean;
   /** Safety valve for the simulation harness; not a real UNO rule. */
   readonly maxTurns: number;
 }
@@ -201,5 +216,6 @@ export const DEFAULT_RULES: RuleConfig = {
   stackMode: 'escalating',
   drawUntilPlayable: true,
   forcePlay: true,
+  unoCalls: true,
   maxTurns: 5000,
 };

@@ -10,7 +10,7 @@
  */
 
 import { Vector3 } from 'three';
-import { COLORS, type Color } from '@uno/engine';
+import { COLORS, type Color, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
 import { LocalGame } from './game/local.js';
 import { NetworkGame } from './game/network.js';
@@ -55,6 +55,7 @@ let game: PlayableGame | null = null;
 let hud: Hud | null = null;
 let unsubscribe: (() => void) | null = null;
 let botTimer: number | null = null;
+let unoTimer: number | null = null;
 let gameMeta: { difficulty: string; startedAt: number; bots: number } | null = null;
 let recorded = false;
 
@@ -142,11 +143,52 @@ function handWidthBudget(): number {
  */
 const BOT_DELAY_MS = 750;
 
+/**
+ * How long the bots hold off before pouncing on a missed UNO.
+ *
+ * Deliberately generous when it is YOU on one card. The printed rule gives you
+ * until "the next player begins their turn", which at a digital table is no
+ * time at all - the window would close before a human could move a mouse, and
+ * the rule would just be a tax on reaction time. Two seconds is long enough to
+ * be a real race and short enough to still feel like one.
+ */
+const UNO_GRACE_MS = 2000;
+/** Bots remembering their own UNO. Quick, but visible as a beat. */
+const UNO_SELF_MS = 550;
+
 function stopBotLoop() {
   if (botTimer !== null) {
     clearTimeout(botTimer);
     botTimer = null;
   }
+  if (unoTimer !== null) {
+    clearTimeout(unoTimer);
+    unoTimer = null;
+  }
+}
+
+/**
+ * Let the bots react to a hanging UNO.
+ *
+ * A separate timer from the turn loop on purpose: calling UNO happens off-turn,
+ * so it must not wait for, or hold up, whoever is on the clock.
+ */
+function scheduleUnoReaction() {
+  if (unoTimer !== null) {
+    clearTimeout(unoTimer);
+    unoTimer = null;
+  }
+  const g = game;
+  if (!(g instanceof LocalGame)) return;
+  const at = g.unoRisk;
+  if (g.isOver || at === null) return;
+  unoTimer = window.setTimeout(
+    () => {
+      unoTimer = null;
+      g.stepUno();
+    },
+    at === g.youId ? UNO_GRACE_MS : UNO_SELF_MS,
+  );
 }
 
 /**
@@ -161,7 +203,10 @@ function stopBotLoop() {
  * turn or the game ends.
  */
 function scheduleBotTurn() {
-  stopBotLoop();
+  if (botTimer !== null) {
+    clearTimeout(botTimer);
+    botTimer = null;
+  }
   const g = game;
   if (!(g instanceof LocalGame)) return;
   if (g.isOver || g.waitingOnHuman()) return;
@@ -239,6 +284,7 @@ function onStateChange() {
 
   // Keep the table moving: if it is a bot's turn, queue their move.
   scheduleBotTurn();
+  scheduleUnoReaction();
 }
 
 function cueSounds(g: PlayableGame) {
@@ -270,6 +316,8 @@ function refreshHud() {
     },
     { label: 'Leave', onClick: toMenu },
   ]);
+
+  renderUnoShout(g, state);
 
   if (g.isOver) return hud.clearPrompt();
 
@@ -332,6 +380,36 @@ function refreshHud() {
           ),
       },
     ],
+  });
+}
+
+/**
+ * Show the UNO button when there is something to shout about.
+ *
+ * Rendered outside the prompt flow because it must survive every early return
+ * below - you can be caught out while a colour picker is on screen, and it is
+ * not your turn when you are catching someone else.
+ */
+function renderUnoShout(g: PlayableGame, state: RedactedState): void {
+  if (!hud) return;
+  const at = state.unoRisk;
+  if (g.isOver || !at || g.spectator) return hud.uno(null);
+
+  if (at === g.youId) {
+    return hud.uno({
+      label: 'UNO!',
+      sub: 'say it before they do',
+      kind: 'call',
+      onClick: () => g.apply({ type: 'callUno', player: g.youId }),
+    });
+  }
+
+  const name = state.players.find((p) => p.id === at)?.name ?? 'they';
+  hud.uno({
+    label: 'UNO!',
+    sub: `catch ${name} — they forgot`,
+    kind: 'catch',
+    onClick: () => g.apply({ type: 'catchUno', player: g.youId }),
   });
 }
 

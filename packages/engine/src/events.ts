@@ -26,5 +26,8 @@ export type GameEvent =
   | { type: 'reshuffled'; count: number }
   | { type: 'eliminated'; player: PlayerId; handSize: number }
   | { type: 'finished'; player: PlayerId }
+  | { type: 'unoRisked'; player: PlayerId }
+  | { type: 'unoCalled'; player: PlayerId }
+  | { type: 'unoCaught'; player: PlayerId; by: PlayerId }
   | { type: 'turnChanged'; player: PlayerId }
   | { type: 'gameOver'; winner: PlayerId | null };

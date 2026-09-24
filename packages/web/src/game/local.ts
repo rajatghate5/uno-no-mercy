@@ -21,7 +21,14 @@ import {
   type Replay,
   type RuleConfig,
 } from '@uno/engine';
-import { decide, emptyMemory, noteDraw, type BotMemory, type Difficulty } from '@uno/bots';
+import {
+  decide,
+  emptyMemory,
+  noteDraw,
+  unoReaction,
+  type BotMemory,
+  type Difficulty,
+} from '@uno/bots';
 import { describeEvent, type LogEntry } from './narrate.js';
 
 export type { LogEntry };
@@ -123,6 +130,29 @@ export class LocalGame {
       // stale keypress. Swallow it rather than crashing mid-game.
       return false;
     }
+  }
+
+  /** Who is one card from winning and has not said so. */
+  get unoRisk(): string | null {
+    return this.state.unoRisk;
+  }
+
+  /**
+   * Give the bots their chance to say "UNO!" - about themselves or about you.
+   *
+   * Separate from stepBot() because calling UNO is the one move that happens
+   * off-turn, so it has to be offered after every state change rather than
+   * only when a bot is on the clock. Returns true if one of them spoke.
+   */
+  stepUno(): boolean {
+    if (this.isOver || this.state.unoRisk === null) return false;
+    for (const p of this.state.players) {
+      if (!p.isBot || p.eliminated || p.finished) continue;
+      const reaction = unoReaction(this.difficulty, redactFor(this.state, p.id), this.rng);
+      this.rng = reaction.rng;
+      if (reaction.action) return this.apply(reaction.action);
+    }
+    return false;
   }
 
   /** Advance one bot decision. Returns false when it is the human's turn. */

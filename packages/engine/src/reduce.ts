@@ -32,6 +32,7 @@ interface Draft {
   pendingDraw: number;
   stackValue: number;
   phase: GameState['phase'];
+  unoRisk: PlayerId | null;
   rng: number;
   rules: GameState['rules'];
   seq: number;
@@ -48,6 +49,7 @@ function toDraft(s: GameState): Draft {
     pendingDraw: s.pendingDraw,
     stackValue: s.stackValue,
     phase: s.phase,
+    unoRisk: s.unoRisk,
     rng: s.rng,
     rules: s.rules,
     seq: s.seq,
@@ -180,6 +182,40 @@ function checkFinished(d: Draft, idx: number, events: GameEvent[]): boolean {
   d.players[idx] = { ...p, finished: true };
   events.push({ type: 'finished', player: p.id });
   return true;
+}
+
+/**
+ * Open or close the "they are on one card and have not said it" window.
+ *
+ * The printed rule is a race: "if someone catches you and calls out UNO
+ * before you (and before the next player begins their turn), then you must
+ * draw 2 cards!"
+ *
+ * That window is a fraction of a second at a physical table. Here it is held
+ * open until the at-risk player's OWN next turn comes round, because a table
+ * where the window shuts the instant a bot moves is not a race anyone can
+ * win - it just taxes whoever is slowest with a mouse. Everything else about
+ * the rule is intact: you are only punished if somebody actually catches you.
+ */
+function updateUnoRisk(d: Draft, events: GameEvent[]): void {
+  if (!d.rules.unoCalls) return;
+
+  // The window closes when the player at risk gets to act again.
+  if (d.unoRisk !== null && d.players[d.turn]?.id === d.unoRisk) {
+    d.unoRisk = null;
+  }
+
+  if (d.unoRisk !== null) return;
+
+  // Opens for whoever is sitting on exactly one card and is not the player
+  // about to act - they have already got away with it if it is their turn.
+  for (const p of d.players) {
+    if (!isActive(p) || p.hand.length !== 1) continue;
+    if (p.id === d.players[d.turn]?.id) continue;
+    d.unoRisk = p.id;
+    events.push({ type: 'unoRisked', player: p.id });
+    return;
+  }
 }
 
 /**
@@ -434,6 +470,28 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
       break;
     }
 
+    case 'callUno': {
+      events.push({ type: 'unoCalled', player: action.player });
+      d.unoRisk = null;
+      // Saying it is not a move: nobody's turn changes, so return before the
+      // usual end-of-action bookkeeping re-opens the window.
+      d.seq += 1;
+      return { state: d as unknown as GameState, events };
+    }
+
+    case 'catchUno': {
+      const caught = d.unoRisk!;
+      const victimIdx = d.players.findIndex((p) => p.id === caught);
+      events.push({ type: 'unoCaught', player: caught, by: action.player });
+      drawCards(d, victimIdx, 2, events);
+      d.unoRisk = null;
+      applyMercy(d, events);
+      // Two cards can be the two that end someone's game.
+      endIfOver(d, events);
+      d.seq += 1;
+      return { state: d as unknown as GameState, events };
+    }
+
     case 'chooseSwapTarget': {
       const targetIdx = d.players.findIndex((p) => p.id === action.target);
       const me = d.players[idx]!;
@@ -447,6 +505,7 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
     }
   }
 
+  updateUnoRisk(d, events);
   d.seq += 1;
   return { state: d as unknown as GameState, events };
 }

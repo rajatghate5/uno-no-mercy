@@ -11,6 +11,7 @@ import {
   deckSize,
   DEFAULT_DECK_SPEC,
   DEFAULT_RULES,
+  IllegalActionError,
   legalMoves,
   redactFor,
   reduce,
@@ -662,5 +663,88 @@ describe('illegal actions', () => {
     });
     expect(canPlay(s, blue)).toBe(false);
     expect(() => reduce(s, { type: 'play', player: 'a', cardId: blue.id })).toThrow();
+  });
+});
+
+describe('calling UNO', () => {
+  test('a player left on one card is at risk until someone says something', () => {
+    const s = state({
+      players: [player('a', [num('red', 1), num('red', 2)]), player('b', [num('blue', 9)])],
+      activeColor: 'red',
+    });
+    // 'a' plays down to one card; the turn passes to 'b'.
+    const r = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(r.state.unoRisk).toBe('a');
+    expect(r.events.some((e) => e.type === 'unoRisked')).toBe(true);
+  });
+
+  test('calling it yourself closes the window with no penalty', () => {
+    const s = state({
+      players: [player('a', [num('red', 1)]), player('b', [num('blue', 9)])],
+      turn: 1,
+      unoRisk: 'a',
+    });
+    const r = reduce(s, { type: 'callUno', player: 'a' });
+    expect(r.state.unoRisk).toBeNull();
+    expect(r.state.players[0]!.hand).toHaveLength(1);
+    // Saying it is not a move - the turn must not change hands.
+    expect(r.state.turn).toBe(1);
+  });
+
+  test('being caught first costs two cards', () => {
+    const s = state({
+      players: [player('a', [num('red', 1)]), player('b', [num('blue', 9)])],
+      turn: 1,
+      unoRisk: 'a',
+      drawPile: pile(5, 'green'),
+    });
+    const r = reduce(s, { type: 'catchUno', player: 'b' });
+    expect(r.state.players[0]!.hand).toHaveLength(3);
+    expect(r.state.unoRisk).toBeNull();
+    expect(r.state.turn).toBe(1);
+    expect(r.events.some((e) => e.type === 'unoCaught')).toBe(true);
+  });
+
+  test('you cannot catch yourself, and nobody can catch a player who is safe', () => {
+    const s = state({
+      players: [player('a', [num('red', 1)]), player('b', [num('blue', 9)])],
+      turn: 1,
+      unoRisk: 'a',
+    });
+    expect(() => reduce(s, { type: 'catchUno', player: 'a' })).toThrow(IllegalActionError);
+    expect(() => reduce(s, { type: 'callUno', player: 'b' })).toThrow(IllegalActionError);
+
+    const safe = state({ players: s.players.map((p) => ({ ...p })), turn: 1, unoRisk: null });
+    expect(() => reduce(safe, { type: 'catchUno', player: 'b' })).toThrow(IllegalActionError);
+  });
+
+  test('the window shuts once the at-risk player gets to act again', () => {
+    const s = state({
+      players: [
+        player('a', [num('red', 1)]),
+        // Three cards, so playing one does not put 'b' at risk in turn and
+        // hand the window straight over.
+        player('b', [num('blue', 9), num('blue', 8), num('blue', 7)]),
+      ],
+      turn: 1,
+      activeColor: 'blue',
+      unoRisk: 'a',
+      drawPile: pile(5, 'green'),
+    });
+    // 'b' plays, the turn comes back to 'a', and the chance is gone.
+    const r = reduce(s, { type: 'play', player: 'b', cardId: s.players[1]!.hand[0]!.id });
+    expect(r.state.players[r.state.turn]!.id).toBe('a');
+    expect(r.state.unoRisk).toBeNull();
+  });
+
+  test('the rule can be switched off entirely', () => {
+    const s = state({
+      players: [player('a', [num('red', 1), num('red', 2)]), player('b', [num('blue', 9)])],
+      activeColor: 'red',
+      rules: { unoCalls: false },
+    });
+    const r = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(r.state.unoRisk).toBeNull();
+    expect(() => reduce(r.state, { type: 'catchUno', player: 'b' })).toThrow(IllegalActionError);
   });
 });

@@ -42,6 +42,12 @@ export function describeEvent(e: GameEvent, name: (id: string) => string): LogEn
       return { text: `${name(e.player)} went out!`, tone: 'good' };
     case 'gameOver':
       return { text: e.winner ? `${name(e.winner)} wins` : 'game over', tone: 'good' };
+    case 'unoRisked':
+      return { text: `${name(e.player)} is on one card`, tone: 'accent' };
+    case 'unoCalled':
+      return { text: `${name(e.player)}: UNO!`, tone: 'good' };
+    case 'unoCaught':
+      return { text: `${name(e.by)} caught ${name(e.player)} - draw 2!`, tone: 'bad' };
     case 'reshuffled':
       return { text: `reshuffled ${e.count} cards`, tone: 'normal' };
     default:

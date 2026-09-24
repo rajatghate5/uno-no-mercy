@@ -64,6 +64,7 @@ export function createGame(opts: CreateOptions): { state: GameState; events: Gam
     pendingDraw: 0,
     stackValue: 0,
     phase: { type: 'play' },
+    unoRisk: null,
     rng,
     rules,
     seq: 0,

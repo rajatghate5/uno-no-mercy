@@ -47,6 +47,8 @@ export interface HouseRules {
   drawUntilPlayable: boolean;
   /** A drawn card that can be played is played for you. Also a printed rule. */
   forcePlay: boolean;
+  /** Shout UNO on one card, or be caught and draw 2. Printed rule too. */
+  unoCalls: boolean;
 }
 
 export const DEFAULT_HOUSE_RULES: HouseRules = {
@@ -58,6 +60,7 @@ export const DEFAULT_HOUSE_RULES: HouseRules = {
   zeroPass: true,
   drawUntilPlayable: true,
   forcePlay: true,
+  unoCalls: true,
 };
 
 /** Bounds enforced by the server. A hand limit below the deal is unplayable. */
@@ -147,6 +150,7 @@ export function cleanHouseRules(raw: unknown): HouseRules {
     zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
     drawUntilPlayable: bool(r.drawUntilPlayable, DEFAULT_HOUSE_RULES.drawUntilPlayable),
     forcePlay: bool(r.forcePlay, DEFAULT_HOUSE_RULES.forcePlay),
+    unoCalls: bool(r.unoCalls, DEFAULT_HOUSE_RULES.unoCalls),
   };
 }
 

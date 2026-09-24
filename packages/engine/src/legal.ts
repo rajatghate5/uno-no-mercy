@@ -53,7 +53,11 @@ export type Action =
   | { type: 'takeStack'; player: PlayerId }
   | { type: 'chooseColor'; player: PlayerId; color: Color }
   | { type: 'chooseSwapTarget'; player: PlayerId; target: PlayerId }
-  | { type: 'chooseRouletteColor'; player: PlayerId; color: Color };
+  | { type: 'chooseRouletteColor'; player: PlayerId; color: Color }
+  /** "UNO!" - said by the player who is down to one card. */
+  | { type: 'callUno'; player: PlayerId }
+  /** "UNO!" - said by someone else first, which costs them two cards. */
+  | { type: 'catchUno'; player: PlayerId };
 
 export function topCard(state: GameState): Card | undefined {
   return state.discardPile[state.discardPile.length - 1];
@@ -115,10 +119,32 @@ export function legalMoves(state: GameState, playerId: PlayerId): Card[] {
   return player.hand.filter((c) => canPlay(state, c));
 }
 
+/**
+ * Calling UNO sits outside the turn structure entirely.
+ *
+ * It is the one thing a player may do when it is not their turn, and it stays
+ * legal through every phase - that is the whole mechanic. Checked before the
+ * phase switch for exactly that reason.
+ */
+function isLegalUnoCall(state: GameState, action: Action): boolean {
+  if (action.type !== 'callUno' && action.type !== 'catchUno') return false;
+  if (!state.rules.unoCalls) return false;
+  if (state.unoRisk === null) return false;
+  const actor = state.players.find((p) => p.id === action.player);
+  if (!actor || actor.eliminated || actor.finished) return false;
+  return action.type === 'callUno'
+    ? action.player === state.unoRisk
+    : action.player !== state.unoRisk;
+}
+
 /** Is this action well-formed and permitted in the current phase? */
 export function isLegalAction(state: GameState, action: Action): boolean {
   const current = state.players[state.turn];
   if (!current) return false;
+
+  if (action.type === 'callUno' || action.type === 'catchUno') {
+    return isLegalUnoCall(state, action);
+  }
 
   switch (state.phase.type) {
     case 'gameOver':

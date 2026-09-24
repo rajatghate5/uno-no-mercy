@@ -20,7 +20,7 @@ import {
   type PlayerSpec,
   type Replay,
 } from '@uno/engine';
-import { decide, emptyMemory, noteDraw, type BotMemory } from '@uno/bots';
+import { decide, emptyMemory, noteDraw, unoReaction, type BotMemory } from '@uno/bots';
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
@@ -67,6 +67,7 @@ export class Room {
   private recorder: ReplayRecorder | null = null;
   private rng: number;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  private unoTimer: ReturnType<typeof setTimeout> | null = null;
   private turnTimer: ReturnType<typeof setTimeout> | null = null;
   started = false;
 
@@ -178,6 +179,7 @@ export class Room {
         sevenSwapsHands: house.sevenSwap,
         zeroPassesHands: house.zeroPass,
         drawUntilPlayable: house.drawUntilPlayable,
+        unoCalls: house.unoCalls,
       },
     });
     this.state = created.state;
@@ -205,7 +207,10 @@ export class Room {
     // the first, a client could submit a valid-looking action on someone
     // else's behalf.
     if (action.player !== playerId) return 'illegal_action';
-    if (this.actorId() !== playerId) return 'illegal_action';
+    // Calling UNO is the one action taken off-turn, so it skips the "is it
+    // your go" gate. isLegalAction still decides whether it is allowed at all.
+    const offTurn = action.type === 'callUno' || action.type === 'catchUno';
+    if (!offTurn && this.actorId() !== playerId) return 'illegal_action';
     if (!isLegalAction(s, action)) return 'illegal_action';
     this.applyAction(action);
     return null;
@@ -233,7 +238,42 @@ export class Room {
       return;
     }
     this.scheduleBot();
+    this.scheduleUno();
     this.scheduleTurnTimeout();
+  }
+
+  private clearUnoTimer() {
+    if (this.unoTimer) {
+      clearTimeout(this.unoTimer);
+      this.unoTimer = null;
+    }
+  }
+
+  /**
+   * Let bots react to a hanging UNO, on their own clock.
+   *
+   * Independent of the turn timer because this happens off-turn. Humans get a
+   * longer fuse than bots do: the printed window is "before the next player
+   * begins their turn", which over a network is no window at all.
+   */
+  private scheduleUno() {
+    this.clearUnoTimer();
+    const s = this.state;
+    if (!s || s.phase.type === 'gameOver' || s.unoRisk === null) return;
+    const atRisk = this.seats.find((seat) => seat.id === s.unoRisk);
+    const delay = atRisk?.isBot ? UNO_SELF_MS : UNO_GRACE_MS;
+
+    this.unoTimer = this.schedule(() => {
+      this.unoTimer = null;
+      const cur = this.state;
+      if (!cur || cur.phase.type === 'gameOver' || cur.unoRisk === null) return;
+      for (const seat of this.seats) {
+        if (!seat.isBot) continue;
+        const r = unoReaction(this.settings.difficulty, redactFor(cur, seat.id), this.rng);
+        this.rng = r.rng;
+        if (r.action) return this.applyAction(r.action);
+      }
+    }, delay);
   }
 
   private clearTurnTimer() {
@@ -327,9 +367,14 @@ export class Room {
 
   dispose() {
     this.clearBotTimer();
+    this.clearUnoTimer();
     this.clearTurnTimer();
   }
 }
+
+/** Matches the solo game: a real race for a human, a quick beat for a bot. */
+const UNO_GRACE_MS = 2000;
+const UNO_SELF_MS = 550;
 
 const BOT_NAMES = ['Ada', 'Turing', 'Hopper', 'Knuth', 'Lovelace', 'Dijkstra', 'Ritchie', 'Karp', 'Liskov'];
 

@@ -281,3 +281,44 @@ export function noteplayed(memory: BotMemory, player: string, color: Color | und
   delete entry[color];
   return { voids: { ...memory.voids, [player]: entry } };
 }
+
+/**
+ * Whether this bot says "UNO!" right now — about itself, or about someone else.
+ *
+ * Kept apart from decide() because it is the one thing a player may do when it
+ * is not their turn, so the game loop has to ask after EVERY state change
+ * rather than only on this bot's move.
+ *
+ * A bot never forgets to call its own. Catching someone else is where the
+ * difficulty shows: an easy bot mostly misses it, a hard bot never does.
+ * The delay before this gets asked — the human's chance to get there first —
+ * belongs to the caller, not here.
+ */
+const CATCH_CHANCE: Record<Difficulty, number> = { easy: 0.25, medium: 0.65, hard: 1 };
+
+/**
+ * A decision that may be "say nothing". The rng still advances when a bot
+ * rolls and decides to stay quiet, so replays stay exact either way.
+ */
+export interface Reaction {
+  action: Action | null;
+  rng: number;
+}
+
+export function unoReaction(
+  difficulty: Difficulty,
+  state: RedactedState,
+  rng: number,
+): Reaction {
+  const me = state.viewer;
+  if (!state.rules.unoCalls || state.unoRisk === null) return { action: null, rng };
+
+  const self = state.players.find((p) => p.id === me);
+  if (!self || self.eliminated || self.finished) return { action: null, rng };
+
+  if (state.unoRisk === me) return { action: { type: 'callUno', player: me }, rng };
+
+  const r = nextInt(rng, 1000);
+  if (r.value >= CATCH_CHANCE[difficulty] * 1000) return { action: null, rng: r.state };
+  return { action: { type: 'catchUno', player: me }, rng: r.state };
+}

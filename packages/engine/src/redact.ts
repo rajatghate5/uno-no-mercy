@@ -44,6 +44,8 @@ export interface RedactedState {
   readonly pendingDraw: number;
   readonly stackValue: number;
   readonly phase: GameState['phase'];
+  /** Who is one card away and has not called UNO. Public by design. */
+  readonly unoRisk: PlayerId | null;
   readonly viewer: PlayerId;
   /** Public rules, so a client can reason about legality without the server. */
   readonly rules: GameState['rules'];
@@ -103,6 +105,7 @@ export function redactFor(state: GameState, viewer: PlayerId): RedactedState {
     pendingDraw: state.pendingDraw,
     stackValue: state.stackValue,
     phase: state.phase,
+    unoRisk: state.unoRisk,
     viewer,
     rules: state.rules,
   };

@@ -680,6 +680,12 @@ function houseRuleControls(
         onRules({ zeroPass: !rules.zeroPass }),
       ),
       toggle(
+        'Call UNO',
+        'One card left? Say it, or an opponent can catch you for 2',
+        rules.unoCalls,
+        () => onRules({ unoCalls: !rules.unoCalls }),
+      ),
+      toggle(
         'Draw until playable',
         'Keep drawing until you get something you can play',
         rules.drawUntilPlayable,
@@ -749,6 +755,7 @@ export function houseRuleSummary(rules: HouseRules): string {
   // that is worth reporting.
   if (!rules.drawUntilPlayable) parts.push('draw one only');
   if (!rules.forcePlay) parts.push('no force play');
+  if (!rules.unoCalls) parts.push('no UNO calls');
   return parts.join(' · ');
 }
 
@@ -771,6 +778,7 @@ export class Hud {
   private logBox: HTMLElement;
   private promptBox: HTMLElement;
   private cornerBox: HTMLElement;
+  private unoBox: HTMLElement;
   private chatBox: HTMLElement | null = null;
 
   constructor(parent: HTMLElement) {
@@ -779,7 +787,10 @@ export class Hud {
     this.logBox = el('div', { class: 'log' });
     this.promptBox = el('div', { class: 'prompt' });
     this.cornerBox = el('div', { class: 'corner' });
-    this.root.append(this.topbar, this.logBox, this.promptBox, this.cornerBox);
+    // Its own layer, not part of the prompt: the UNO shout has to be able to
+    // sit on screen at the same time as a colour picker or a stack warning.
+    this.unoBox = el('div', { class: 'unobar' });
+    this.root.append(this.topbar, this.logBox, this.promptBox, this.unoBox, this.cornerBox);
     parent.append(this.root);
   }
 
@@ -923,6 +934,23 @@ export class Hud {
 
   clearPrompt(): void {
     clear(this.promptBox);
+  }
+
+  /**
+   * The "UNO!" shout - yours to claim, or theirs to lose.
+   *
+   * One button either way, because at the table it is one word either way:
+   * whoever says it first wins the exchange.
+   */
+  uno(content: { label: string; sub: string; kind: 'call' | 'catch'; onClick: () => void } | null): void {
+    clear(this.unoBox);
+    if (!content) return;
+    this.unoBox.append(
+      el('button', { class: `uno-shout ${content.kind}`, onClick: content.onClick }, [
+        el('span', { class: 'word', text: content.label }),
+        el('span', { class: 'sub', text: content.sub }),
+      ]),
+    );
   }
 
   enableChat(onSend: (text: string) => void): void {

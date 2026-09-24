@@ -34,6 +34,7 @@ export function state(
     pendingDraw: 0,
     stackValue: 0,
     phase: { type: 'play' },
+    unoRisk: null,
     rng: 12345,
     seq: 0,
     ...over,
