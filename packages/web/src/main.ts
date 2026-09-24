@@ -153,10 +153,18 @@ function positionSeats() {
       const [x, z] = seatPosition(angle, TABLE_RADIUS - 0.25, seatSqueeze(aspect));
       // Viewer's own seat would sit under the hand; hide it.
       if (i === viewerIndex) return null;
-      // Floated above the felt so the chip sits over the top edge of that
-      // seat's fan rather than across the middle of their cards.
-      const p = new Vector3(x, 1.25, z).project(stage.camera);
       const portrait = window.innerWidth < window.innerHeight;
+      /*
+       * Floated above the felt so the chip sits CLEAR of that seat's fan
+       * rather than across the middle of their cards.
+       *
+       * Portrait needs much more lift than landscape. On a phone the side
+       * seats and their fans project to nearly the same screen height, so at
+       * the old 1.25 the name and the card count were printed straight over
+       * the opponent's hand. Raising the anchor moves the label up the screen
+       * without moving the seat.
+       */
+      const p = new Vector3(x, portrait ? 2.9 : 1.7, z).project(stage.camera);
 
       // Clamp by the label's MEASURED half-width, not a guessed constant.
       // Labels are translate(-50%,-50%) centred, so a fixed pad let wider

@@ -12,9 +12,9 @@
  */
 
 import { Group, Raycaster, Vector2, Vector3, type Scene } from 'three';
-import type { Card, GameEvent, RedactedState } from '@uno/engine';
+import { playableFor, type Card, type GameEvent, type RedactedState } from '@uno/engine';
 import { Animator, ease } from './anim.js';
-import { makeCard, revealCard, type CardObject } from './card3d.js';
+import { makeCard, releaseCardMaterial, revealCard, setCardLit, type CardObject } from './card3d.js';
 import {
   discardTransform,
   drawTransform,
@@ -142,6 +142,7 @@ export class TableView {
     this.held.delete(key);
     this.animator.cancel(key);
     const mesh = held.mesh;
+    releaseCardMaterial(mesh);
     // Fade out by sinking into the felt, then remove.
     this.animator.tween({
       duration: 220,
@@ -201,12 +202,24 @@ export class TableView {
     const targets = ownHandLayout(hand.length, this.selected, aspect, widthBudget);
     const isFirstDeal = !this.dealt;
 
+    /*
+     * Which cards catch the light.
+     *
+     * playableFor() returns nothing when it is not your turn, and shadowing
+     * the entire hand at that point would read as a fault rather than as
+     * information. So the rule only applies while you actually have a choice
+     * to make; the rest of the time every card is lit.
+     */
+    const mine = state.players[state.turn]?.id === state.viewer;
+    const playable = mine ? new Set(playableFor(state).map((c) => c.id)) : null;
+
     hand.forEach((card, i) => {
       const key = `hand-${card.id}`;
       live.add(key);
       const isNew = !this.held.has(key);
       const held = this.ensure(key, card);
       const target = targets[i]!;
+      setCardLit(held.mesh, !playable || playable.has(card.id));
 
       if (isNew) {
         // New cards arrive from the draw pile, face-down, and flip as they come.
