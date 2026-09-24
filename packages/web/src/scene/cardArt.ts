@@ -55,22 +55,6 @@ const GLYPH: Partial<Record<CardKind, string>> = {
 /** Kinds whose centre is an icon rather than a label. */
 const ICON_KINDS = new Set<CardKind>(['skip', 'reverse', 'skipEveryone', 'discardAll']);
 
-/** Small corner mark. Shorter than the centre glyph so it fits. */
-const CORNER: Partial<Record<CardKind, string>> = {
-  drawTwo: '+2',
-  drawFour: '+4',
-  skip: 'O',
-  reverse: 'R',
-  skipEveryone: 'OO',
-  discardAll: 'D',
-  wild: 'W',
-  wildDrawFour: '+4',
-  wildDrawSix: '+6',
-  wildDrawTen: '+10',
-  wildReverseDrawFour: 'R4',
-  wildColorRoulette: '?',
-};
-
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -145,19 +129,108 @@ function centreText(
   ctx.restore();
 }
 
-function corners(ctx: CanvasRenderingContext2D, text: string, color: string) {
-  const { w, h } = CARD_PX;
+/** How much of the full-size icon fits in a corner. */
+const CORNER_SCALE = 0.3;
+
+/**
+ * One corner mark, centred on the current origin.
+ *
+ * Icon cards get a miniature of their own symbol; only cards whose CENTRE is
+ * text get text here. That is the rule on a real card and it is what makes a
+ * fanned hand readable - you recognise the shape, not a two-letter code.
+ */
+function cornerMark(
+  ctx: CanvasRenderingContext2D,
+  kind: CardKind,
+  rank: number | undefined,
+  color: string,
+): void {
+  if (kind !== 'number' && ICON_KINDS.has(kind)) {
+    drawIcon(ctx, kind, color, 'transparent', { x: 0, y: 0, scale: CORNER_SCALE });
+    return;
+  }
+
+  if (kind === 'wildColorRoulette') {
+    // A wheel, not a question mark: the wheel is what the card is about.
+    colorWheel(ctx, 0, 0, 30);
+    ctx.beginPath();
+    ctx.arc(0, 0, 30, 0, Math.PI * 2);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    return;
+  }
+
+  if (kind === 'wildReverseDrawFour') {
+    // The two things it does, stacked: reverse above, +4 below.
+    drawIcon(ctx, 'reverse', color, 'transparent', { x: 0, y: -30, scale: 0.16 });
+    cornerText(ctx, '+4', color, 0, 26);
+    return;
+  }
+
+  const text = kind === 'number' ? String(rank) : (GLYPH[kind] ?? '');
+  cornerText(ctx, text, color, 0, 0);
+}
+
+function cornerText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  color: string,
+  x: number,
+  y: number,
+): void {
   const size = text.length >= 3 ? 40 : 54;
   ctx.font = `700 ${size}px Archivo, Helvetica, Arial, sans-serif`;
   ctx.fillStyle = color;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText(text, 44, 40);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x, y);
+}
+
+/** centreText, but at a chosen height and size - used when a face stacks two marks. */
+function centreTextAt(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  color: string,
+  outline: string | null,
+  y: number,
+  size: number,
+): void {
+  const { w } = CARD_PX;
+  ctx.font = `800 ${size}px Archivo, Helvetica, Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.save();
+  ctx.translate(w / 2, y);
+  ctx.rotate(-Math.PI / 24);
+  if (outline) {
+    ctx.lineWidth = size * 0.1;
+    ctx.strokeStyle = outline;
+    ctx.lineJoin = 'round';
+    ctx.strokeText(text, 0, 0);
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+function corners(
+  ctx: CanvasRenderingContext2D,
+  kind: CardKind,
+  rank: number | undefined,
+  color: string,
+): void {
+  const { w, h } = CARD_PX;
+  ctx.save();
+  ctx.translate(74, 74);
+  cornerMark(ctx, kind, rank, color);
+  ctx.restore();
+
   // Bottom-right is the same mark rotated 180, exactly like a real card.
   ctx.save();
-  ctx.translate(w - 44, h - 40);
+  ctx.translate(w - 74, h - 74);
   ctx.rotate(Math.PI);
-  ctx.fillText(text, 0, 0);
+  cornerMark(ctx, kind, rank, color);
   ctx.restore();
 }
 
@@ -223,15 +296,24 @@ function wildOval(ctx: CanvasRenderingContext2D) {
  * `stroke` is the ink colour (the card's own colour on a coloured card, white
  * on a wild) and `shadow` is the contrasting outline behind it.
  */
+/**
+ * @param at where to draw and how big. Defaults to full size at card centre;
+ *   the corners pass a small scale so a corner shows the SAME symbol as the
+ *   middle, which is how a real card works. The corners used to carry letter
+ *   codes instead - "OO" for Skip Everyone, "D" for Discard All - which read
+ *   as typos rather than as marks meaning anything.
+ */
 function drawIcon(
   ctx: CanvasRenderingContext2D,
   kind: CardKind,
   stroke: string,
   shadow: string,
+  at?: { x: number; y: number; scale: number },
 ): void {
   const { w, h } = CARD_PX;
   ctx.save();
-  ctx.translate(w / 2, h / 2);
+  ctx.translate(at?.x ?? w / 2, at?.y ?? h / 2);
+  if (at) ctx.scale(at.scale, at.scale);
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
@@ -256,16 +338,26 @@ function drawIcon(
   ];
 
   if (kind === 'skip' || kind === 'skipEveryone') {
-    // Skip is the circle-slash. Skip Everyone is two of them, interlocked.
-    const offs = kind === 'skipEveryone' ? [-42, 42] : [0];
-    const r = kind === 'skipEveryone' ? 62 : 86;
+    /*
+     * Skip is one circle-slash. Skip Everyone is THREE of them in a row -
+     * one per player it takes out.
+     *
+     * It was two, overlapping, which merged into a single pretzel shape that
+     * read as neither "skip" nor "everyone". Separated marks stay countable
+     * at the size a card actually gets drawn.
+     */
+    const offs = kind === 'skipEveryone' ? [-74, 0, 74] : [0];
+    const r = kind === 'skipEveryone' ? 36 : 86;
+    // Stroke weight has to follow the radius. Fixed at 20px it was as thick
+    // as a Skip Everyone ring is wide, and the three marks filled in solid.
+    const lw = r * 0.23;
     for (const [color, extra] of passes) {
       ctx.strokeStyle = color;
       for (const dx of offs) {
         ctx.save();
         ctx.translate(dx, 0);
-        ring(r, 20 + extra * 14);
-        slash(r, 20 + extra * 14);
+        ring(r, lw + extra * r * 0.16);
+        slash(r, lw + extra * r * 0.16);
         ctx.restore();
       }
     }
@@ -367,16 +459,27 @@ function drawFace(ctx: CanvasRenderingContext2D, kind: CardKind, color: Color | 
       ctx.lineWidth = 9;
       ctx.strokeStyle = CARD_WHITE;
       ctx.stroke();
-      corners(ctx, CORNER[kind] ?? '', CARD_WHITE);
+      corners(ctx, kind, rank, CARD_WHITE);
       return;
     }
 
     // Every other wild: colour-filled oval with a heavily outlined label, so
     // "+10" reads from across the table at any card angle.
     wildOval(ctx);
-    if (ICON_KINDS.has(kind)) drawIcon(ctx, kind, CARD_WHITE, '#101018');
-    else centreText(ctx, GLYPH[kind] ?? '', CARD_WHITE, '#101018');
-    corners(ctx, CORNER[kind] ?? '', CARD_WHITE);
+    if (kind === 'wildReverseDrawFour') {
+      /*
+       * This card both reverses and hits for 4, and drawn as a bare "+4" it
+       * was indistinguishable from the coloured +4 - two very different cards
+       * with the same face. Show both jobs: arrows above, penalty below.
+       */
+      drawIcon(ctx, 'reverse', CARD_WHITE, '#101018', { x: w / 2, y: h * 0.41, scale: 0.42 });
+      centreTextAt(ctx, '+4', CARD_WHITE, '#101018', h * 0.605, 94);
+    } else if (ICON_KINDS.has(kind)) {
+      drawIcon(ctx, kind, CARD_WHITE, '#101018');
+    } else {
+      centreText(ctx, GLYPH[kind] ?? '', CARD_WHITE, '#101018');
+    }
+    corners(ctx, kind, rank, CARD_WHITE);
     return;
   }
 
@@ -388,7 +491,7 @@ function drawFace(ctx: CanvasRenderingContext2D, kind: CardKind, color: Color | 
     const label = kind === 'number' ? String(rank) : (GLYPH[kind] ?? '');
     centreText(ctx, label, CARD_COLORS[color], DEEP[color]);
   }
-  corners(ctx, kind === 'number' ? String(rank) : (CORNER[kind] ?? ''), CARD_WHITE);
+  corners(ctx, kind, rank, CARD_WHITE);
 }
 
 /** The shared back design: dark body, tilted oval, UNO wordmark. */

@@ -19,6 +19,7 @@ import {
   discardTransform,
   drawTransform,
   opponentHandLayout,
+  seatSqueeze,
   ownHandLayout,
   seatAngle,
   seatSpawn,
@@ -166,11 +167,11 @@ export class TableView {
       if (this.held.has(key)) continue;
       const held = this.ensure(key, e.card);
       const angle = seatAngle(idx, this.viewerIndex, this.seatCount);
-      this.place(held.mesh, seatSpawn(angle, e.player === state.viewer));
+      this.place(held.mesh, seatSpawn(angle, e.player === state.viewer, seatSqueeze(aspect)));
     }
 
     this.layoutOwnHand(state, aspect, widthBudget, live);
-    this.layoutOpponents(state, live);
+    this.layoutOpponents(state, aspect, live);
     this.layoutDiscard(state, live);
     this.layoutDrawPile(state, live);
 
@@ -221,14 +222,14 @@ export class TableView {
     this.lastHandIds = hand.map((c) => c.id);
   }
 
-  private layoutOpponents(state: RedactedState, live: Set<string>): void {
+  private layoutOpponents(state: RedactedState, aspect: number, live: Set<string>): void {
     state.players.forEach((p, idx) => {
       if (p.id === state.viewer) return;
       const angle = seatAngle(idx, this.viewerIndex, this.seatCount);
       // Cap the rendered fan: nobody can read 25 overlapping cards anyway,
       // and the count is shown numerically in the HUD.
       const shown = Math.min(p.handCount, 12);
-      const targets = opponentHandLayout(shown, angle);
+      const targets = opponentHandLayout(shown, angle, seatSqueeze(aspect));
 
       for (let i = 0; i < shown; i++) {
         const key = `opp-${p.id}-${i}`;

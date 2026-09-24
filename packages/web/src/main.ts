@@ -20,13 +20,14 @@ import { resolveServer } from './game/serverUrl.js';
 import { Store } from './game/store.js';
 import type { PlayableGame } from './game/types.js';
 import { warmCardArt } from './scene/cardArt.js';
-import { createStage } from './scene/table.js';
+import { createStage, webglAvailable } from './scene/table.js';
 import { TableView } from './scene/tableView.js';
 import {
   HAND_Z_LANDSCAPE,
   HAND_Z_PORTRAIT,
   seatAngle,
   seatPosition,
+  seatSqueeze,
   visibleWidthAtHand,
 } from './scene/layout.js';
 import { TABLE_RADIUS } from './scene/table.js';
@@ -45,7 +46,51 @@ const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const hudLayer = document.getElementById('hud-layer') as HTMLElement;
 const screenLayer = document.getElementById('screen-layer') as HTMLElement;
 
-const stage = createStage(canvas);
+/**
+ * Fail out loud.
+ *
+ * createStage() used to run bare at module scope, so anything that stopped
+ * WebGL working - a privacy-hardened browser, an older iPhone, a blocklisted
+ * GPU - threw here and the page simply stayed black with nothing on it and
+ * nothing in the log for a player to report. A 3D card table genuinely cannot
+ * run without WebGL; what it can do is say so.
+ */
+function fatal(title: string, detail: string): never {
+  screenLayer.innerHTML = '';
+  const screen = document.createElement('div');
+  screen.className = 'screen';
+  const box = document.createElement('div');
+  box.className = 'card-panel';
+  // Built by hand rather than through Screens: this has to work even if the
+  // failure happened before the rest of the app was ready.
+  const h = document.createElement('h2');
+  h.textContent = title;
+  const p1 = document.createElement('p');
+  p1.className = 'sub';
+  p1.textContent = detail;
+  const p2 = document.createElement('p');
+  p2.className = 'sub';
+  p2.textContent =
+    'If this is a privacy or content blocker, allowing WebGL for this page is usually enough.';
+  box.append(h, p1, p2);
+  screen.append(box);
+  screenLayer.append(screen);
+  throw new Error(`${title}: ${detail}`);
+}
+
+if (!webglAvailable()) {
+  fatal(
+    'This browser cannot draw the table',
+    'The game needs WebGL, and this browser has it turned off or unavailable.',
+  );
+}
+
+let stage: ReturnType<typeof createStage>;
+try {
+  stage = createStage(canvas);
+} catch (e) {
+  fatal('The table failed to start', `WebGL reported: ${String(e)}`);
+}
 const view = new TableView(stage.scene);
 const screens = new Screens(screenLayer);
 const store = new Store();
@@ -93,10 +138,13 @@ function positionSeats() {
     state,
     (i, size) => {
       const angle = seatAngle(i, viewerIndex, state.players.length);
-      const [x, z] = seatPosition(angle, TABLE_RADIUS - 0.25);
+      const aspect = window.innerWidth / window.innerHeight;
+      const [x, z] = seatPosition(angle, TABLE_RADIUS - 0.25, seatSqueeze(aspect));
       // Viewer's own seat would sit under the hand; hide it.
       if (i === viewerIndex) return null;
-      const p = new Vector3(x, 0.35, z).project(stage.camera);
+      // Floated above the felt so the chip sits over the top edge of that
+      // seat's fan rather than across the middle of their cards.
+      const p = new Vector3(x, 1.25, z).project(stage.camera);
       const portrait = window.innerWidth < window.innerHeight;
 
       // Clamp by the label's MEASURED half-width, not a guessed constant.
@@ -104,7 +152,9 @@ function positionSeats() {
       // chips hang off the edge on a tablet while looking fine on a phone.
       const padX = size.width / 2 + 6;
       const padY = size.height / 2 + 4;
-      const topFloor = (portrait ? 150 : 128) + padY;
+      // Measured from the live HUD rather than assumed, so a wrapped prompt
+      // pushes the labels down with it instead of being covered by them.
+      const topFloor = (hud?.topReserved() ?? (portrait ? 150 : 128)) + padY;
 
       return {
         x: clamp(((p.x + 1) / 2) * window.innerWidth, padX, window.innerWidth - padX),

@@ -35,8 +35,25 @@ export function seatAngle(index: number, viewerIndex: number, count: number): nu
   return Math.PI / 2 + (offset * Math.PI * 2) / count;
 }
 
-export function seatPosition(angle: number, radius: number): [number, number] {
-  return [Math.cos(angle) * radius, Math.sin(angle) * radius];
+/**
+ * How much the seating ring is squashed horizontally.
+ *
+ * A round table framed by a portrait camera puts the left and right seats
+ * outside the frustum entirely - on a phone those two players had a floating
+ * name label and no cards anywhere on screen. Squashing the ring into an
+ * ellipse pulls them back into frame without moving the felt, the piles, or
+ * the seat the viewer occupies.
+ *
+ * 1 means an untouched circle, which is what any landscape viewport gets.
+ */
+export function seatSqueeze(aspect: number): number {
+  if (aspect >= 1) return 1;
+  // Ramps from a full circle at square down to 0.46 on a tall phone.
+  return Math.max(0.46, 0.46 + (aspect - 0.5) * 1.0);
+}
+
+export function seatPosition(angle: number, radius: number, squeeze = 1): [number, number] {
+  return [Math.cos(angle) * radius * squeeze, Math.sin(angle) * radius];
 }
 
 /**
@@ -70,7 +87,14 @@ function clearance(tilt: number): number {
 
 /** Where the hand sits, so the camera can be measured against it. */
 export const HAND_Z_LANDSCAPE = 3.35;
-export const HAND_Z_PORTRAIT = 3.05;
+/**
+ * Further forward than landscape, not further back.
+ *
+ * With the portrait camera pulled back to fit the table, a hand at the old
+ * 3.05 sat two thirds up the screen with a dead band of felt beneath it. The
+ * hand belongs at the near edge - that is where a player's own cards are.
+ */
+export const HAND_Z_PORTRAIT = 4.6;
 
 /**
  * How wide the camera can actually see at the hand, in world units.
@@ -137,17 +161,21 @@ export function ownHandLayout(
 export function opponentHandLayout(
   count: number,
   angle: number,
+  squeeze = 1,
 ): Transform[] {
   if (count === 0) return [];
   const radius = TABLE_RADIUS - 1.75;
-  const [cx, cz] = seatPosition(angle, radius);
+  const [cx, cz] = seatPosition(angle, radius, squeeze);
 
   // Cards fan along the tangent at that seat.
   const tangent = angle + Math.PI / 2;
   const tx = Math.cos(tangent);
   const tz = Math.sin(tangent);
 
-  const step = Math.min(0.34, 3.1 / Math.max(1, count - 1));
+  // A squeezed ring puts the side seats close to the piles, so the fan has to
+  // narrow by the same amount or it lands on top of the discard.
+  const span = 3.1 * squeeze;
+  const step = Math.min(0.34, span / Math.max(1, count - 1));
   const total = step * (count - 1);
 
   return Array.from({ length: count }, (_, i) => {
@@ -185,15 +213,15 @@ export function drawTransform(depth: number): Transform {
 }
 
 /** Where a card should be born when a given seat plays it. */
-export function seatSpawn(angle: number, isViewer: boolean): Transform {
+export function seatSpawn(angle: number, isViewer: boolean, squeeze = 1): Transform {
   if (isViewer) return { pos: [0, 0.9, 3.8], rot: [-Math.PI / 2 + 0.5, 0, 0] };
-  const [cx, cz] = seatPosition(angle, TABLE_RADIUS - 1.9);
+  const [cx, cz] = seatPosition(angle, TABLE_RADIUS - 1.9, squeeze);
   return { pos: [cx, 0.9, cz], rot: [-Math.PI / 2, 0, -angle + Math.PI / 2] };
 }
 
 /** Where an eliminated or finished player's marker sits. */
-export function seatLabelPosition(angle: number): [number, number, number] {
-  const [cx, cz] = seatPosition(angle, TABLE_RADIUS - 0.55);
+export function seatLabelPosition(angle: number, squeeze = 1): [number, number, number] {
+  const [cx, cz] = seatPosition(angle, TABLE_RADIUS - 0.55, squeeze);
   return [cx, 0.02, cz];
 }
 

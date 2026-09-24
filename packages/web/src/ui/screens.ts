@@ -805,6 +805,17 @@ export class Hud {
     }
   }
 
+  /**
+   * Bottom edge of the top HUD furniture, in CSS pixels.
+   *
+   * Measured, not guessed. A fixed floor works until the prompt wraps to two
+   * lines on a phone and its button row lands exactly where the top seat's
+   * label sits - which is how "Draw a card" ended up underneath a name chip.
+   */
+  topReserved(): number {
+    return Math.max(this.topbar.getBoundingClientRect().bottom, this.promptBox.getBoundingClientRect().bottom) + 10;
+  }
+
   /** Reposition seat labels to follow their 3D seats. */
   seats(
     state: RedactedState,

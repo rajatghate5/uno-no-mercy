@@ -72,9 +72,38 @@ export interface Stage {
   dispose: () => void;
 }
 
+/**
+ * Is WebGL actually available?
+ *
+ * Not a given. Privacy-hardened browsers disable it, older iOS falls back to
+ * software or refuses outright, and a blocklisted GPU takes it away on any
+ * platform. Asking first lets the caller say so instead of throwing from the
+ * constructor and leaving a black page.
+ */
+export function webglAvailable(): boolean {
+  try {
+    const probe = document.createElement('canvas');
+    return !!(probe.getContext('webgl2') ?? probe.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Pixel-ratio cap.
+ *
+ * A 3x phone asks for NINE times the pixels of a 1x one, and with a shadow map
+ * on top that is how an iPhone loses its WebGL context mid-game. Phones are
+ * capped harder than desktops on purpose - this used to read `portrait ? 2 : 2`,
+ * which is to say it was not capping anything.
+ */
+function pixelRatioCap(portrait: boolean): number {
+  return Math.min(window.devicePixelRatio, portrait ? 1.75 : 2);
+}
+
 export function createStage(canvas: HTMLCanvasElement): Stage {
   const renderer = new WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(pixelRatioCap(window.innerWidth < window.innerHeight));
   renderer.shadowMap.enabled = true;
   // PCFSoftShadowMap was removed in three 0.186; PCFShadowMap is the
   // supported soft-ish filter now.
@@ -159,9 +188,7 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     const portrait = w / h < 1;
 
     renderer.setSize(w, h, false);
-    // Cap the pixel ratio harder on phones: a 3x device renders nine times the
-    // pixels, which is the difference between 60fps and a slideshow.
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, portrait ? 2 : 2));
+    renderer.setPixelRatio(pixelRatioCap(portrait));
     // Soft shadows are the most expensive thing on the table; a phone gets a
     // smaller map rather than none, so cards still sit on the felt.
     if (key.shadow.mapSize.width !== (portrait ? 1024 : 2048)) {
@@ -173,15 +200,32 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     }
 
     camera.aspect = w / h;
-    // A narrow screen needs a wider lens, and the camera pulled in, or the
-    // frame is mostly empty felt with the table stranded in the middle.
-    camera.fov = portrait ? 56 : 42;
-    camera.position.set(0, portrait ? 8.0 : 8.9, portrait ? 6.6 : 7.9);
-    camera.lookAt(0, 0, portrait ? -0.2 : -0.75);
+    /*
+     * Portrait needs a wider lens AND more distance.
+     *
+     * Pulling the camera IN, which is what it used to do, made the frame
+     * narrower in world terms - and a phone's problem is that the table is
+     * too wide for the frame, not too small in it. The side seats ended up
+     * outside the frustum with nothing but a floating name label on screen.
+     * Backing off and opening up costs some card size and fits the table.
+     */
+    camera.fov = portrait ? 62 : 42;
+    camera.position.set(0, portrait ? 10.5 : 8.9, portrait ? 8.6 : 7.9);
+    camera.lookAt(0, 0, portrait ? -0.4 : -0.75);
     camera.updateProjectionMatrix();
   };
   resize();
   window.addEventListener('resize', resize);
+
+  /*
+   * A lost context is a black canvas until something asks for it back.
+   * preventDefault() is what makes the browser willing to restore one at all;
+   * without it the page just stays dark and looks like a crash.
+   */
+  const onLost = (e: Event) => e.preventDefault();
+  const onRestored = () => resize();
+  canvas.addEventListener('webglcontextlost', onLost);
+  canvas.addEventListener('webglcontextrestored', onRestored);
 
   return {
     renderer,
@@ -190,6 +234,8 @@ export function createStage(canvas: HTMLCanvasElement): Stage {
     resize,
     dispose() {
       window.removeEventListener('resize', resize);
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
       renderer.dispose();
     },
   };
