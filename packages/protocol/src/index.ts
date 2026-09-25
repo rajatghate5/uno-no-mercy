@@ -38,6 +38,8 @@ export interface HouseRules {
   stackMode: 'escalating' | 'sum' | 'any';
   /** 7 swaps hands with a player of your choice. */
   sevenSwap: boolean;
+  /** May the player of a 7 decline the swap and keep their hand? House rule. */
+  sevenDecline: boolean;
   /** 0 passes every hand in the direction of play. */
   zeroPass: boolean;
   /**
@@ -57,6 +59,7 @@ export const DEFAULT_HOUSE_RULES: HouseRules = {
   stacking: true,
   stackMode: 'escalating',
   sevenSwap: true,
+  sevenDecline: true,
   zeroPass: true,
   drawUntilPlayable: true,
   forcePlay: true,
@@ -147,6 +150,7 @@ export function cleanHouseRules(raw: unknown): HouseRules {
     stackMode:
       r.stackMode === 'any' || r.stackMode === 'sum' ? r.stackMode : 'escalating',
     sevenSwap: bool(r.sevenSwap, DEFAULT_HOUSE_RULES.sevenSwap),
+    sevenDecline: bool(r.sevenDecline, DEFAULT_HOUSE_RULES.sevenDecline),
     zeroPass: bool(r.zeroPass, DEFAULT_HOUSE_RULES.zeroPass),
     drawUntilPlayable: bool(r.drawUntilPlayable, DEFAULT_HOUSE_RULES.drawUntilPlayable),
     forcePlay: bool(r.forcePlay, DEFAULT_HOUSE_RULES.forcePlay),
@@ -182,6 +186,8 @@ export type ClientMessage =
   | { t: 'start' }
   | { t: 'action'; action: Action }
   | { t: 'chat'; text: string }
+  /** Mid-sentence, or stopped. Fire-and-forget; never affects game state. */
+  | { t: 'typing'; typing: boolean }
   | { t: 'leave' };
 
 // --- server -> client -------------------------------------------------------
@@ -192,6 +198,7 @@ export type ServerMessage =
   | { t: 'lobby'; code: string; players: LobbyPlayer[]; settings: RoomSettings; hostId: string }
   | { t: 'state'; state: RedactedState; events: GameEvent[] }
   | { t: 'chat'; message: ChatMessage }
+  | { t: 'typing'; player: string; name: string; typing: boolean }
   | { t: 'error'; code: ErrorCode; message: string }
   | { t: 'ended'; winner: string | null };
 

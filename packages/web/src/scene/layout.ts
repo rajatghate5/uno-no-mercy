@@ -14,6 +14,8 @@ import { TABLE_RADIUS } from './table.js';
 export interface Transform {
   pos: [number, number, number];
   rot: [number, number, number];
+  /** Uniform mesh scale. Only the viewer's own hand ever uses anything but 1. */
+  scale?: number;
 }
 
 /** Stack heights, so piles do not z-fight with the felt or each other. */
@@ -113,6 +115,33 @@ export function visibleWidthAtHand(
   return 2 * distance * Math.tan(halfFov) * aspect;
 }
 
+/** Where the hand stops showing whole cards and becomes a real fan. */
+const FAN_FROM = 11;
+/** Where the shrink bottoms out. Past this, more cards just means thinner slivers. */
+const FAN_TO = 22;
+/** How small a card gets in the densest fan, as a fraction of its normal size. */
+const FAN_MIN_SCALE = 0.78;
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/**
+ * The viewer's own hand.
+ *
+ * Small hands lie in a gentle arc at full size. Past about eleven cards the
+ * hand becomes a fan you would actually hold: the cards shrink, slide back
+ * away from the camera, and overlap down to a readable sliver each.
+ *
+ * The shrink is not decoration. At twenty-two cards the old layout kept every
+ * card at full size, which pushed the row past the bottom of the viewport and
+ * cut roughly the lower half off every one of them - so the hand that most
+ * needs reading was the one you could not read. Scaling down and pushing back
+ * keeps all twenty-five whole and on screen.
+ *
+ * Whichever card is selected always comes back to FULL size and lifts clear
+ * of the fan, which is what makes a sliver-width fan usable: you point at a
+ * card and it steps out of the row to show you what it is.
+ */
 export function ownHandLayout(
   count: number,
   selected: number,
@@ -122,37 +151,76 @@ export function ownHandLayout(
 ): Transform[] {
   if (count === 0) return [];
 
+  const portrait = viewportAspect < 1;
+
+  // 0 while the hand is small, ramping to 1 once it is genuinely crowded.
+  const fan = clamp01((count - FAN_FROM) / (FAN_TO - FAN_FROM));
+  const scale = lerp(1, FAN_MIN_SCALE, fan);
+  const cardW = CARD_W * scale;
+
   // Leave room for a whole card plus a margin, so the outermost card is fully
   // on screen rather than half-cut by the viewport edge.
-  const maxSpread = Math.max(1.2, widthBudget * 0.88 - CARD_W);
+  const maxSpread = Math.max(1.2, widthBudget * 0.88 - cardW);
   // A small positive gap at low card counts: overlapping cards are harder to
   // aim at, and the hand only needs to fan once it runs out of room.
-  const step = Math.min(CARD_W * 1.12, maxSpread / Math.max(1, count - 1));
+  const step = Math.min(cardW * 1.12, maxSpread / Math.max(1, count - 1));
   const totalWidth = step * (count - 1);
-  const arc = Math.min(0.24, 0.05 * count);
+  // A crowded fan gets a flatter arc, or the outer cards rotate so far that
+  // their corner marks end up underneath their neighbours.
+  const arc = Math.min(portrait ? 0.14 : 0.24, 0.05 * count) * lerp(1, 0.6, fan);
 
-  const restY = clearance(HAND_TILT);
-  const selY = clearance(HAND_TILT_SELECTED) + 0.16;
-  // A phone has no room for the arc; flattening it keeps every card reachable.
-  const portrait = viewportAspect < 1;
+  const restY = clearance(HAND_TILT) * scale;
+  /*
+   * Where the row sits front-to-back.
+   *
+   * Shrinking the cards already lifts their bottom edge clear of the
+   * viewport, so this only has to make up the difference. Landscape gives a
+   * touch of push-back; portrait moves the row the other way, TOWARD the
+   * camera, because on a phone a shrunken hand otherwise leaves a band of
+   * empty felt below it the size of the hand itself.
+   */
+  const baseZ =
+    (portrait ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE) + lerp(0, portrait ? 0.5 : -0.2, fan);
 
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : i / (count - 1) - 0.5;
-    const x = t * totalWidth;
-    // Kept well inside the table edge: further back and the near row of
-    // cards is clipped by the bottom of the viewport.
-    const z = (portrait ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE) - Math.abs(t) * arc * 2.6;
     const isSel = i === selected;
+
+    /*
+     * Neighbours step aside for the raised card.
+     *
+     * Without this the lifted card still has its immediate neighbours
+     * overlapping its edges, which is exactly the occlusion the lift exists
+     * to undo. The push falls off fast, so the rest of the fan does not slide
+     * around every time the pointer moves.
+     */
+    const away = selected >= 0 && !isSel ? Math.sign(i - selected) : 0;
+    const nudge = away === 0 ? 0 : away * step * 0.55 * Math.exp(-Math.abs(i - selected) / 1.6);
+
+    const x = t * totalWidth + nudge;
+    const z = baseZ - Math.abs(t) * arc * 2.6;
+
+    if (isSel) {
+      return {
+        // Full size and clear of the row: up off the felt, and forward up the
+        // screen into the empty felt above the hand rather than toward the
+        // camera, where there is no room left.
+        pos: [x, clearance(HAND_TILT_SELECTED) + 0.34, z - CARD_H * 0.62],
+        rot: [-Math.PI / 2 + HAND_TILT_SELECTED, 0, 0],
+        scale: 1,
+      } satisfies Transform;
+    }
 
     return {
       // The tiny per-card increment stops coplanar cards z-fighting.
-      pos: [x, (isSel ? selY : restY) + i * 0.002, isSel ? z - 0.34 : z],
+      pos: [x, restY + i * 0.002, z],
       rot: [
         // Laid back toward the felt, but tipped up to face the camera.
-        -Math.PI / 2 + (isSel ? HAND_TILT_SELECTED : HAND_TILT),
+        -Math.PI / 2 + HAND_TILT,
         0,
         -t * arc,
       ],
+      scale,
     } satisfies Transform;
   });
 }

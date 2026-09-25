@@ -53,6 +53,8 @@ export type Action =
   | { type: 'takeStack'; player: PlayerId }
   | { type: 'chooseColor'; player: PlayerId; color: Color }
   | { type: 'chooseSwapTarget'; player: PlayerId; target: PlayerId }
+  /** Played a 7 and would rather keep the hand. House rule. */
+  | { type: 'declineSwap'; player: PlayerId }
   | { type: 'chooseRouletteColor'; player: PlayerId; color: Color }
   /** "UNO!" - said by the player who is down to one card. */
   | { type: 'callUno'; player: PlayerId }
@@ -154,6 +156,9 @@ export function isLegalAction(state: GameState, action: Action): boolean {
       return action.type === 'chooseColor' && action.player === current.id;
 
     case 'chooseSwapTarget': {
+      if (action.type === 'declineSwap') {
+        return state.rules.sevenMayDecline && action.player === current.id;
+      }
       if (action.type !== 'chooseSwapTarget' || action.player !== current.id) return false;
       const target = state.players.find((p) => p.id === action.target);
       return !!target && !target.eliminated && !target.finished && target.id !== current.id;

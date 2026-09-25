@@ -46,6 +46,15 @@ export class NetworkGame {
   lobby: LobbyPlayer[] = [];
   settings: RoomSettings | null = null;
   chat: ChatMessage[] = [];
+  /**
+   * Who is mid-sentence, and when that claim goes stale.
+   *
+   * Expiry is the point. A "stopped typing" message can be lost to a dropped
+   * socket or a closed tab, and without a deadline the indicator would sit
+   * there naming someone who left ten minutes ago.
+   */
+  private typingUntil = new Map<string, { name: string; until: number }>();
+  private typingSweep: number | undefined;
   readonly log: LogEntry[] = [];
   winner: string | null = null;
   lastEvents: GameEvent[] = [];
@@ -134,8 +143,24 @@ export class NetworkGame {
         this.lastEvents = msg.events;
         this.narrate(msg.events);
         break;
+      case 'typing': {
+        if (msg.player === this.youId) break;
+        if (msg.typing) {
+          this.typingUntil.set(msg.player, { name: msg.name, until: Date.now() + 4000 });
+          // Re-render when the claim goes stale. Without this the indicator
+          // sits there until some unrelated message happens to arrive.
+          window.clearTimeout(this.typingSweep);
+          this.typingSweep = window.setTimeout(() => this.emit(), 4100);
+        } else {
+          this.typingUntil.delete(msg.player);
+        }
+        break;
+      }
+
       case 'chat':
         this.chat.push(msg.message);
+        // Posting ends the sentence, so the indicator must go with it.
+        this.typingUntil.delete(msg.message.from);
         if (this.chat.length > 100) this.chat.shift();
         break;
       case 'ended':
@@ -208,6 +233,21 @@ export class NetworkGame {
 
   updateSettings(settings: Partial<RoomSettings>) {
     this.send({ t: 'settings', settings });
+  }
+
+  /** Names currently mid-sentence, stale entries dropped on read. */
+  typingNames(): string[] {
+    const now = Date.now();
+    const out: string[] = [];
+    for (const [id, t] of this.typingUntil) {
+      if (t.until <= now) this.typingUntil.delete(id);
+      else out.push(t.name);
+    }
+    return out;
+  }
+
+  setTyping(typing: boolean) {
+    this.send({ t: 'typing', typing });
   }
 
   say(text: string) {

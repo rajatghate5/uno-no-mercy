@@ -10,7 +10,7 @@
  */
 
 import { Vector3 } from 'three';
-import { COLORS, type Color, type RedactedState } from '@uno/engine';
+import { COLORS, type Color, type GameOverReason, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
 import { LocalGame } from './game/local.js';
 import { NetworkGame } from './game/network.js';
@@ -210,7 +210,7 @@ function handWidthBudget(): number {
  * Long enough for the previous card's animation to land, so the table is
  * readable rather than a blur of cards.
  */
-const BOT_DELAY_MS = 750;
+const BOT_DELAY_MS = 1000;
 
 /**
  * How long the bots hold off before pouncing on a missed UNO.
@@ -327,7 +327,12 @@ function attach(g: PlayableGame) {
     },
     { label: 'Leave', onClick: toMenu },
   ]);
-  if (g.say) hud.enableChat((text) => g.say?.(text));
+  if (g.say) {
+    hud.enableChat(
+      (text) => g.say?.(text),
+      (typing) => g.setTyping?.(typing),
+    );
+  }
   unsubscribe = g.subscribe(onStateChange);
   onStateChange();
 }
@@ -373,7 +378,10 @@ function refreshHud() {
 
   hud.chips(state);
   hud.log(g.log);
-  if (g.chat) hud.chat(g.chat);
+  if (g.chat) {
+    hud.chat(g.chat);
+    hud.typing(g.typingNames?.() ?? []);
+  }
   hud.corner([
     {
       label: sound.enabled ? 'Sound on' : 'Sound off',
@@ -404,6 +412,7 @@ function refreshHud() {
 
   if (phase.type === 'chooseColor' || phase.type === 'chooseRouletteColor') {
     return hud.prompt({
+      kind: 'decision',
       label:
         phase.type === 'chooseColor'
           ? 'Pick a colour'
@@ -422,12 +431,29 @@ function refreshHud() {
     const targets = state.players.filter(
       (p) => p.id !== g.youId && !p.eliminated && !p.finished,
     );
+    const mine = state.players.find((p) => p.id === g.youId)?.hand?.length ?? 0;
     return hud.prompt({
-      label: 'Swap hands with',
-      buttons: targets.map((t) => ({
-        label: `${t.name} (${t.handCount})`,
-        onClick: () => g.apply({ type: 'chooseSwapTarget', player: g.youId, target: t.id }),
-      })),
+      kind: 'decision',
+      label: 'You played a 7 — take someone else\'s hand',
+      buttons: [
+        ...targets.map((t) => ({
+          label: t.name,
+          // The count is the whole decision, so it gets its own line rather
+          // than being tucked in brackets after the name.
+          sub: `${t.handCount} ${t.handCount === 1 ? 'card' : 'cards'}`,
+          onClick: () => g.apply({ type: 'chooseSwapTarget', player: g.youId, target: t.id }),
+        })),
+        // House rule. Off in the printed game, where a 7 obliges you to swap.
+        ...(state.rules.sevenMayDecline
+          ? [
+              {
+                label: 'Keep mine',
+                sub: `${mine} ${mine === 1 ? 'card' : 'cards'}`,
+                onClick: () => g.apply({ type: 'declineSwap', player: g.youId }),
+              },
+            ]
+          : []),
+      ],
     });
   }
 
@@ -512,14 +538,26 @@ function finishGame(g: PlayableGame) {
     });
   }
 
-  const winnerName =
-    g.view()?.players.find((p) => p.id === g.winner)?.name ?? 'Nobody';
+  const final = g.view();
+  const winnerName = final?.players.find((p) => p.id === g.winner)?.name ?? 'Nobody';
+
+  /*
+   * Read the reason off the final table rather than threading it through the
+   * network protocol: the redacted state already says everything needed, and
+   * a LAN game and a bot game then explain themselves identically.
+   */
+  const reason: GameOverReason = final?.players.some((p) => p.finished)
+    ? 'wentOut'
+    : (final?.players.filter((p) => !p.eliminated && !p.finished).length ?? 0) === 1
+      ? 'lastStanding'
+      : 'fewestCards';
 
   // Let the final animation land before the panel covers the table.
   window.setTimeout(() => {
     screens.gameOver(
       won,
       winnerName,
+      reason,
       () => {
         if (gameMeta && game instanceof LocalGame) {
           startSolo(gameMeta.bots, gameMeta.difficulty as Difficulty);

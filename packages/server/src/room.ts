@@ -177,6 +177,7 @@ export class Room {
         stackingEnabled: house.stacking,
         stackMode: house.stackMode,
         sevenSwapsHands: house.sevenSwap,
+        sevenMayDecline: house.sevenDecline,
         zeroPassesHands: house.zeroPass,
         drawUntilPlayable: house.drawUntilPlayable,
         unoCalls: house.unoCalls,
@@ -346,6 +347,17 @@ export class Room {
       this.rng = d.rng;
       this.applyAction(d.action);
     }, this.botDelayMs);
+  }
+
+  /**
+   * Relay a typing flag.
+   *
+   * Never stored: it is a hint with a shelf life of about two seconds, and
+   * keeping it on the room would mean a player who disconnects mid-sentence
+   * leaves a ghost typing forever.
+   */
+  postTyping(from: string, name: string, typing: boolean) {
+    this.broadcast({ t: 'typing', player: from, name, typing });
   }
 
   postChat(from: string, name: string, text: string) {

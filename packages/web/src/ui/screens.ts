@@ -6,7 +6,7 @@
  * be good at - selection, accessibility, reflow and crispness.
  */
 
-import { COLORS, type Color, type RedactedState } from '@uno/engine';
+import { COLORS, type Color, type GameOverReason, type RedactedState } from '@uno/engine';
 import type { Difficulty } from '@uno/bots';
 import {
   HOUSE_RULE_LIMITS,
@@ -531,13 +531,45 @@ export class Screens {
 
   // --- game over -----------------------------------------------------------
 
-  gameOver(won: boolean, winnerName: string, onAgain: () => void, onMenu: () => void): void {
+  gameOver(
+    won: boolean,
+    winnerName: string,
+    reason: GameOverReason,
+    onAgain: () => void,
+    onMenu: () => void,
+  ): void {
+    /*
+     * Say what actually happened.
+     *
+     * A game can end three ways here and they do not feel remotely alike:
+     * going out is a win you engineered, outlasting everyone is a win you
+     * survived, and smallest-hand is a win by a nose when the cards ran out.
+     * Collapsing all three into "wins" threw that away - and when the winner
+     * could not be resolved at all this screen used to read "Nobody wins".
+     */
+    const headline = won
+      ? {
+          wentOut: 'You <span class="mercy">win</span>',
+          lastStanding: 'Last one <span class="mercy">standing</span>',
+          fewestCards: 'You <span class="mercy">win</span> on cards',
+        }[reason]
+      : `${escapeHtml(winnerName)} wins`;
+
+    const blurb = won
+      ? {
+          wentOut: 'Hand empty, table beaten.',
+          lastStanding: 'Everyone else hit twenty-five and went out the hard way.',
+          fewestCards: 'The deck ran dry and you were holding the fewest cards.',
+        }[reason]
+      : {
+          wentOut: `${winnerName} went out first. Better luck next hand.`,
+          lastStanding: `${winnerName} outlasted everyone. Better luck next hand.`,
+          fewestCards: `The deck ran dry and ${winnerName} held the fewest cards.`,
+        }[reason];
+
     this.panel(
-      el('h1', { html: won ? 'You <span class="mercy">win</span>' : `${escapeHtml(winnerName)} wins` }),
-      el('p', {
-        class: 'sub',
-        text: won ? 'Last one standing.' : 'Better luck next hand.',
-      }),
+      el('h1', { html: headline }),
+      el('p', { class: 'sub', text: blurb }),
       el('div', { class: 'actions' }, [
         el('button', { class: 'primary', text: 'Play again', onClick: onAgain }),
         el('button', { text: 'Menu', onClick: onMenu }),
@@ -676,6 +708,16 @@ function houseRuleControls(
       toggle('7s swap hands', "Play a 7, take someone else's hand", rules.sevenSwap, () =>
         onRules({ sevenSwap: !rules.sevenSwap }),
       ),
+      ...(rules.sevenSwap
+        ? [
+            toggle(
+              'May keep your hand',
+              'House rule — the printed game obliges you to swap with somebody',
+              rules.sevenDecline,
+              () => onRules({ sevenDecline: !rules.sevenDecline }),
+            ),
+          ]
+        : []),
       toggle('0s pass hands', 'Play a 0, everyone shifts their hand along', rules.zeroPass, () =>
         onRules({ zeroPass: !rules.zeroPass }),
       ),
@@ -772,6 +814,7 @@ export function houseRuleSummary(rules: HouseRules): string {
   else if (rules.stackMode === 'any') parts.push('any-card stacking');
   else if (rules.stackMode === 'sum') parts.push('beat-the-total stacking');
   if (!rules.sevenSwap) parts.push('no 7-swaps');
+  else if (rules.sevenDecline) parts.push('7s may decline');
   if (!rules.zeroPass) parts.push('no 0-passes');
   // These two are printed rules and default on, so it is turning them OFF
   // that is worth reporting.
@@ -802,6 +845,11 @@ export class Hud {
   private cornerBox: HTMLElement;
   private unoBox: HTMLElement;
   private chatBox: HTMLElement | null = null;
+  private chatTab: HTMLElement | null = null;
+  private chatInput: HTMLInputElement | null = null;
+  /** Unread bookkeeping, so a closed drawer still says something arrived. */
+  private chatCount = 0;
+  private chatSeen = 0;
 
   constructor(parent: HTMLElement) {
     this.root = el('div', {});
@@ -835,7 +883,12 @@ export class Hud {
    * label sits - which is how "Draw a card" ended up underneath a name chip.
    */
   topReserved(): number {
-    return Math.max(this.topbar.getBoundingClientRect().bottom, this.promptBox.getBoundingClientRect().bottom) + 10;
+    // A decision prompt sits in the middle of the screen, not the top strip,
+    // so it must not push the seat labels down with it.
+    const promptBottom = this.promptBox.classList.contains('decision')
+      ? 0
+      : this.promptBox.getBoundingClientRect().bottom;
+    return Math.max(this.topbar.getBoundingClientRect().bottom, promptBottom) + 10;
   }
 
   /** Reposition seat labels to follow their 3D seats. */
@@ -935,13 +988,26 @@ export class Hud {
     }
   }
 
+  /**
+   * The prompt strip.
+   *
+   * Two quite different jobs wear the same element. Passive prompts ("Ada's
+   * turn") are a quiet chip under the status row. DECISIONS - pick a colour,
+   * pick who to swap with - move to the middle of the screen and become a
+   * plate, because a choice that stops the game has to be impossible to miss.
+   *
+   * It used to be one treatment for both, in the top strip, where on a phone
+   * it overlapped the status chips and the question was genuinely unreadable.
+   */
   prompt(content: {
     label: string;
+    kind?: 'passive' | 'decision';
     colors?: Color[];
     onPick?: (c: Color) => void;
-    buttons?: { label: string; onClick: () => void }[];
+    buttons?: { label: string; sub?: string; onClick: () => void }[];
   }): void {
     clear(this.promptBox);
+    this.promptBox.classList.toggle('decision', content.kind === 'decision');
     this.promptBox.append(el('div', { class: 'label', text: content.label }));
 
     if (content.colors) {
@@ -960,13 +1026,25 @@ export class Hud {
         ),
       );
     }
-    for (const b of content.buttons ?? []) {
-      this.promptBox.append(el('button', { class: 'primary', text: b.label, onClick: b.onClick }));
+    if (content.buttons?.length) {
+      this.promptBox.append(
+        el(
+          'div',
+          { class: 'choices' },
+          content.buttons.map((b) =>
+            el('button', { class: 'primary choice', onClick: b.onClick }, [
+              el('span', { class: 'choice-label', text: b.label }),
+              b.sub ? el('span', { class: 'choice-sub', text: b.sub }) : null,
+            ].filter(Boolean) as Node[]),
+          ),
+        ),
+      );
     }
   }
 
   clearPrompt(): void {
     clear(this.promptBox);
+    this.promptBox.classList.remove('decision');
   }
 
   /**
@@ -986,35 +1064,143 @@ export class Hud {
     );
   }
 
-  enableChat(onSend: (text: string) => void): void {
+  /**
+   * The chat drawer.
+   *
+   * Closed by default and anchored off the right edge, because the felt is
+   * where the game is and a chat box parked over it covers an opponent's hand
+   * for the whole match whether or not anyone is talking. The tab carries an
+   * unread count so a closed drawer is never a silent one.
+   */
+  enableChat(onSend: (text: string) => void, onTyping?: (typing: boolean) => void): void {
     if (this.chatBox) return;
+
     const messages = el('div', { class: 'messages' });
+    const typing = el('div', { class: 'typing' });
+
+    /*
+     * Tell the table you are typing, and stop telling them when you stop.
+     *
+     * Throttled on the way out and expired on a timer at the other end, so a
+     * dropped "stopped" message leaves an indicator that clears itself rather
+     * than one that sticks forever.
+     */
+    let typingSent = 0;
+    let typingIdle: number | undefined;
+    const signal = (on: boolean) => {
+      window.clearTimeout(typingIdle);
+      if (!on) {
+        typingSent = 0;
+        onTyping?.(false);
+        return;
+      }
+      const now = Date.now();
+      if (now - typingSent > 2000) {
+        typingSent = now;
+        onTyping?.(true);
+      }
+      typingIdle = window.setTimeout(() => signal(false), 2500);
+    };
+
     const input = el('input', {
       type: 'text',
       placeholder: 'Say something…',
       maxlength: 200,
+      onInput: (e) => signal(!!(e.target as HTMLInputElement).value),
       onKeydown: (e) => {
         const ev = e as KeyboardEvent;
+        if (ev.key === 'Escape') return this.toggleChat(false);
         if (ev.key !== 'Enter') return;
-        const value = (ev.target as HTMLInputElement).value.trim();
+        const field = ev.target as HTMLInputElement;
+        const value = field.value.trim();
         if (!value) return;
         onSend(value);
-        (ev.target as HTMLInputElement).value = '';
+        field.value = '';
+        signal(false);
       },
     });
-    this.chatBox = el('div', { class: 'chat' }, [messages, input]);
-    this.root.append(this.chatBox);
+
+    this.chatBox = el('div', { class: 'chat' }, [
+      el('div', { class: 'chat-head' }, [
+        el('h3', { text: 'Table talk' }),
+        el('button', { text: 'Close', 'aria-label': 'Close chat', onClick: () => this.toggleChat(false) }),
+      ]),
+      messages,
+      typing,
+      input,
+    ]);
+
+    this.chatTab = el('button', { class: 'chat-tab', onClick: () => this.toggleChat() }, [
+      document.createTextNode('Chat'),
+    ]);
+
+    this.root.append(this.chatBox, this.chatTab);
+    this.chatInput = input as HTMLInputElement;
+  }
+
+  /** Open or close the drawer. Omit `open` to flip it. */
+  toggleChat(open?: boolean): void {
+    if (!this.chatBox) return;
+    const next = open ?? !this.chatBox.classList.contains('open');
+    this.chatBox.classList.toggle('open', next);
+    if (next) {
+      this.chatSeen = this.chatCount;
+      this.renderUnread();
+      this.chatInput?.focus();
+    }
+  }
+
+  private renderUnread(): void {
+    if (!this.chatTab) return;
+    const n = Math.max(0, this.chatCount - this.chatSeen);
+    const badge = this.chatTab.querySelector('.unread');
+    if (n === 0) {
+      badge?.remove();
+      return;
+    }
+    if (badge) badge.textContent = String(n);
+    else this.chatTab.append(el('span', { class: 'unread', text: String(n) }));
   }
 
   chat(messages: ChatMessage[]): void {
     const box = this.chatBox?.querySelector('.messages');
     if (!box) return;
+
+    this.chatCount = messages.length;
+    if (this.chatBox?.classList.contains('open')) this.chatSeen = this.chatCount;
+    this.renderUnread();
+
     clear(box as HTMLElement);
-    for (const m of messages.slice(-6)) {
+    if (messages.length === 0) {
       (box as HTMLElement).append(
-        el('div', {}, [el('span', { class: 'who', text: `${m.name}: ` }), m.text]),
+        el('div', { class: 'empty', text: 'Nobody has said anything yet.' }),
+      );
+      return;
+    }
+    for (const m of messages.slice(-40)) {
+      (box as HTMLElement).append(
+        el('div', {}, [el('span', { class: 'who', text: m.name }), m.text]),
       );
     }
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /** Who is mid-sentence, by name. Empty clears the line. */
+  typing(names: string[]): void {
+    const line = this.chatBox?.querySelector('.typing');
+    if (!line) return;
+    clear(line as HTMLElement);
+    if (names.length === 0) return;
+    const who =
+      names.length === 1
+        ? `${names[0]} is typing`
+        : names.length === 2
+          ? `${names[0]} and ${names[1]} are typing`
+          : `${names.length} people are typing`;
+    (line as HTMLElement).append(
+      el('span', { text: who }),
+      el('span', { class: 'dots' }, [el('i'), el('i'), el('i')]),
+    );
   }
 }
 

@@ -319,6 +319,12 @@ export function createServer(opts: ServerOptions = {}) {
         return;
       }
 
+      case 'typing': {
+        const seat = room.seats.find((s) => s.id === actingAs());
+        room.postTyping(actingAs(), seat?.name ?? 'spectator', msg.typing === true);
+        return;
+      }
+
       case 'leave': {
         room.detach(actingAs());
         ws.data.code = null;

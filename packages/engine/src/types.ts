@@ -159,6 +159,14 @@ export interface RuleConfig {
   readonly zeroPassesHands: boolean;
   /** 7 => swap hands with a player of your choice. */
   readonly sevenSwapsHands: boolean;
+  /**
+   * May the player who laid the 7 decline the swap and keep their hand?
+   *
+   * A house rule, and off in Mattel's sheet: there, playing a 7 obliges you
+   * to swap with somebody. It exists because a 7 drawn into a hand you are
+   * winning with is otherwise a card you simply cannot afford to play.
+   */
+  readonly sevenMayDecline: boolean;
   /** Draw cards can be stacked onto an equal-or-lower draw card. */
   readonly stackingEnabled: boolean;
   /**
@@ -212,6 +220,7 @@ export const DEFAULT_RULES: RuleConfig = {
   startingHand: 7,
   zeroPassesHands: true,
   sevenSwapsHands: true,
+  sevenMayDecline: true,
   stackingEnabled: true,
   stackMode: 'escalating',
   drawUntilPlayable: true,

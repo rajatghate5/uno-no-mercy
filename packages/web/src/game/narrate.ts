@@ -41,7 +41,14 @@ export function describeEvent(e: GameEvent, name: (id: string) => string): LogEn
     case 'finished':
       return { text: `${name(e.player)} went out!`, tone: 'good' };
     case 'gameOver':
-      return { text: e.winner ? `${name(e.winner)} wins` : 'game over', tone: 'good' };
+      return {
+        text: e.winner
+          ? e.reason === 'fewestCards'
+            ? `${name(e.winner)} wins on fewest cards`
+            : `${name(e.winner)} wins`
+          : 'game over',
+        tone: 'good',
+      };
     case 'unoRisked':
       return { text: `${name(e.player)} is on one card`, tone: 'accent' };
     case 'unoCalled':
@@ -50,6 +57,10 @@ export function describeEvent(e: GameEvent, name: (id: string) => string): LogEn
       return { text: `${name(e.by)} caught ${name(e.player)} - draw 2!`, tone: 'bad' };
     case 'reshuffled':
       return { text: `reshuffled ${e.count} cards`, tone: 'normal' };
+    case 'swapDeclined':
+      return { text: `${name(e.player)} kept their hand`, tone: 'accent' };
+    case 'deckExhausted':
+      return { text: 'the deck is out of cards', tone: 'bad' };
     default:
       return null;
   }

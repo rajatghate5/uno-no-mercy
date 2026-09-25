@@ -748,3 +748,105 @@ describe('calling UNO', () => {
     expect(() => reduce(r.state, { type: 'catchUno', player: 'b' })).toThrow(IllegalActionError);
   });
 });
+
+/**
+ * Ending a game that cannot end itself.
+ *
+ * Both of these used to report a winner of `null`, which the game-over screen
+ * rendered as "Nobody wins" - a result nobody at a real table would accept.
+ */
+describe('settling an unwinnable position', () => {
+  test('a dry deck with no legal play hands it to the smallest hand', () => {
+    const s = state({
+      players: [
+        player('a', [num('blue', 1), num('blue', 2), num('blue', 3)]),
+        player('b', [num('blue', 4)]),
+      ],
+      // Nothing to draw and nothing to recycle: one card on the discard.
+      drawPile: [],
+      discardPile: [num('red', 9)],
+      activeColor: 'red',
+      turn: 0,
+    });
+
+    // 'a' is to act, holds only blues, and cannot draw. Deadlock.
+    const r = reduce(s, { type: 'draw', player: 'a' });
+
+    expect(r.events.some((e) => e.type === 'deckExhausted')).toBe(true);
+    const over = r.events.find((e) => e.type === 'gameOver');
+    expect(over).toMatchObject({ winner: 'b', reason: 'fewestCards' });
+    expect(r.state.phase).toMatchObject({ type: 'gameOver', winner: 'b' });
+  });
+
+  test('a playable hand is never cut short just because the deck is dry', () => {
+    const s = state({
+      players: [
+        player('a', [num('red', 1), num('blue', 2)]),
+        player('b', [num('blue', 4)]),
+      ],
+      drawPile: [],
+      discardPile: [num('red', 9)],
+      activeColor: 'red',
+      turn: 0,
+    });
+
+    // 'a' can still play the red 1, so the game must carry on.
+    const r = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(r.state.phase.type).not.toBe('gameOver');
+  });
+
+  test('the last card out wins even when the deck is dry', () => {
+    const s = state({
+      players: [player('a', [num('red', 1)]), player('b', [num('blue', 4), num('blue', 5)])],
+      drawPile: [],
+      discardPile: [num('red', 9)],
+      activeColor: 'red',
+      turn: 0,
+    });
+    const r = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(r.events.find((e) => e.type === 'gameOver')).toMatchObject({
+      winner: 'a',
+      reason: 'wentOut',
+    });
+  });
+});
+
+/**
+ * Declining a 7-swap.
+ *
+ * A house rule, off in Mattel's sheet: there, playing a 7 obliges you to swap
+ * with somebody. It exists because a 7 drawn into a hand you are winning with
+ * is otherwise a card you simply cannot afford to play.
+ */
+describe('7 may decline the swap', () => {
+  const table = (rules: { sevenMayDecline?: boolean } = {}) =>
+    state({
+      players: [
+        player('a', [num('red', 7), num('blue', 1)]),
+        player('b', [num('green', 3), num('green', 4), num('green', 5)]),
+      ],
+      drawPile: pile(20),
+      discardPile: [num('red', 5)],
+      activeColor: 'red',
+      turn: 0,
+      rules,
+    });
+
+  test('declining keeps both hands and passes the turn', () => {
+    const s = table();
+    const played = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(played.state.phase.type).toBe('chooseSwapTarget');
+
+    const r = reduce(played.state, { type: 'declineSwap', player: 'a' });
+    expect(r.state.players[0]!.hand).toHaveLength(1);
+    expect(r.state.players[1]!.hand).toHaveLength(3);
+    expect(r.events.some((e) => e.type === 'swapDeclined')).toBe(true);
+    expect(r.state.players[r.state.turn]!.id).toBe('b');
+  });
+
+  test('the printed rule leaves you no way out', () => {
+    const s = table({ sevenMayDecline: false });
+    const played = reduce(s, { type: 'play', player: 'a', cardId: s.players[0]!.hand[0]!.id });
+    expect(() => reduce(played.state, { type: 'declineSwap', player: 'a' })).toThrow();
+  });
+});

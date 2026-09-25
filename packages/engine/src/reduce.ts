@@ -5,7 +5,7 @@
  * Math.random. Every randomness draw goes through state.rng.
  */
 
-import type { GameEvent } from './events.js';
+import type { GameEvent, GameOverReason } from './events.js';
 import { canPlay, isLegalAction, topCard, type Action } from './legal.js';
 import { shuffle } from './rng.js';
 import {
@@ -135,22 +135,74 @@ function nextActive(d: Draft, from: number, steps = 1): number {
   return from;
 }
 
+/** No cards in the draw pile and nothing in the discard left to recycle. */
+function deckDry(d: Draft): boolean {
+  return d.drawPile.length === 0 && d.discardPile.length <= 1;
+}
+
+/**
+ * Whoever is holding the smallest hand.
+ *
+ * Preference order matters: someone still in the game beats someone who has
+ * been eliminated, however few cards the eliminated player was holding. Ties
+ * go to the earlier seat, which is arbitrary but at least deterministic, and
+ * a tie here means two players genuinely finished level.
+ */
+function smallestHand(d: Draft): PlayerId | null {
+  const pool = d.players.filter(isActive);
+  const contenders = pool.length > 0 ? pool : d.players;
+  let best = contenders[0];
+  if (!best) return null;
+  for (const p of contenders) if (p.hand.length < best.hand.length) best = p;
+  return best.id;
+}
+
+function finish(d: Draft, winner: PlayerId | null, reason: GameOverReason, events: GameEvent[]): void {
+  d.phase = { type: 'gameOver', winner };
+  events.push({ type: 'gameOver', winner, reason });
+}
+
 function endIfOver(d: Draft, events: GameEvent[]): boolean {
   const active = d.players.filter(isActive);
   const finished = d.players.find((p) => p.finished);
 
   if (finished) {
-    d.phase = { type: 'gameOver', winner: finished.id };
-    events.push({ type: 'gameOver', winner: finished.id });
+    finish(d, finished.id, 'wentOut', events);
     return true;
   }
   if (active.length <= 1) {
-    const winner = active[0]?.id ?? null;
-    d.phase = { type: 'gameOver', winner };
-    events.push({ type: 'gameOver', winner });
+    /*
+     * There is normally one player left standing, but a stack resolution can
+     * push the last two over the hand limit at the same instant and leave
+     * nobody active at all. That used to report a winner of null, which the
+     * game-over screen rendered as "Nobody wins" - a result nobody at the
+     * table would accept. Fall back to whoever was holding least.
+     */
+    const winner = active[0]?.id ?? smallestHand(d);
+    finish(d, winner, active.length === 1 ? 'lastStanding' : 'fewestCards', events);
     return true;
   }
   return false;
+}
+
+/**
+ * Settle a game that has run out of cards.
+ *
+ * The deck recycles the discard pile, so this only fires when the players are
+ * between them holding very nearly all 168 cards AND the player to act cannot
+ * play any of theirs. Before this existed the game simply stopped: no winner,
+ * no message, and a table waiting on a turn that could never be taken.
+ *
+ * Deliberately narrower than "the deck is empty". A dry deck on its own is
+ * not a reason to stop a game people can still play out; the deadlock is.
+ */
+function settleIfDeadlocked(d: Draft, events: GameEvent[]): void {
+  if (d.phase.type === 'gameOver' || !deckDry(d)) return;
+  const current = d.players[d.turn];
+  if (!current || !isActive(current)) return;
+  if (current.hand.some((c) => canPlay(d as unknown as GameState, c))) return;
+  events.push({ type: 'deckExhausted' });
+  finish(d, smallestHand(d), 'fewestCards', events);
 }
 
 /** Hand the turn to the next active player (or `steps` further, to skip). */
@@ -503,9 +555,17 @@ export function reduce(state: GameState, action: Action): { state: GameState; ev
       advance(d, events);
       break;
     }
+
+    case 'declineSwap': {
+      events.push({ type: 'swapDeclined', player: d.players[idx]!.id });
+      advance(d, events);
+      break;
+    }
   }
 
   updateUnoRisk(d, events);
+  // Last, so it sees the table exactly as the next player will find it.
+  settleIfDeadlocked(d, events);
   d.seq += 1;
   return { state: d as unknown as GameState, events };
 }

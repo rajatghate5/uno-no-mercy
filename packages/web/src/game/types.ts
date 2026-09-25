@@ -23,6 +23,10 @@ export interface PlayableGame {
   /** Present only for networked games. */
   readonly chat?: ChatMessage[];
   say?(text: string): void;
+  /** Networked games only: tell the table you are mid-sentence. */
+  setTyping?(typing: boolean): void;
+  /** Networked games only: who is mid-sentence right now. */
+  typingNames?(): string[];
   /** The viewer's own player id. */
   readonly youId: string;
   readonly spectator?: boolean;

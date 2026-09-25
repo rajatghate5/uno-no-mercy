@@ -26,9 +26,19 @@ import {
   type Transform,
 } from './layout.js';
 
-const DEAL_MS = 380;
-const MOVE_MS = 300;
-const PLAY_MS = 460;
+/*
+ * Animation timings.
+ *
+ * Deliberately unhurried. The previous set was about a third faster and the
+ * table read as cards teleporting: a +10 landing on someone is the loudest
+ * thing that happens in this game and it was over before you had registered
+ * it. Everything here is roughly 1.5x its old value.
+ */
+const DEAL_MS = 560;
+const MOVE_MS = 450;
+const PLAY_MS = 700;
+/** A card already on the table shuffling along to make room. */
+const SETTLE_MS = 290;
 
 /** How many face-down cards to actually render for a pile. */
 const MAX_PILE_MESHES = 14;
@@ -85,6 +95,7 @@ export class TableView {
   private place(mesh: CardObject, t: Transform): void {
     mesh.position.set(t.pos[0], t.pos[1], t.pos[2]);
     mesh.rotation.set(t.rot[0], t.rot[1], t.rot[2]);
+    mesh.scale.setScalar(t.scale ?? 1);
   }
 
   private moveTo(
@@ -96,7 +107,9 @@ export class TableView {
     const from = {
       pos: [mesh.position.x, mesh.position.y, mesh.position.z] as [number, number, number],
       rot: [mesh.rotation.x, mesh.rotation.y, mesh.rotation.z] as [number, number, number],
+      scale: mesh.scale.x,
     };
+    const toScale = to.scale ?? 1;
     const arc = opts.arc ?? 0;
 
     this.animator.tween({
@@ -117,6 +130,7 @@ export class TableView {
           from.rot[1] + shortestAngle(from.rot[1], to.rot[1]) * t,
           from.rot[2] + shortestAngle(from.rot[2], to.rot[2]) * t,
         );
+        mesh.scale.setScalar(from.scale + (toScale - from.scale) * t);
       },
     });
   }
@@ -145,7 +159,7 @@ export class TableView {
     releaseCardMaterial(mesh);
     // Fade out by sinking into the felt, then remove.
     this.animator.tween({
-      duration: 220,
+      duration: 320,
       onUpdate: (t) => {
         mesh.position.y -= t * 0.02;
         mesh.scale.setScalar(1 - t * 0.35);
@@ -226,14 +240,14 @@ export class TableView {
         const from = drawTransform(6);
         this.place(held.mesh, { pos: [from.pos[0], from.pos[1] + 0.2, from.pos[2]], rot: from.rot });
         this.moveTo(key, held.mesh, target, {
-          duration: isFirstDeal ? DEAL_MS : MOVE_MS + 80,
+          duration: isFirstDeal ? DEAL_MS : MOVE_MS + 120,
           // Stagger only the opening deal; a mid-game draw should feel instant.
-          delay: isFirstDeal ? i * 85 : 0,
+          delay: isFirstDeal ? i * 115 : 0,
           arc: 0.75,
           easing: ease.outQuint,
         });
       } else {
-        this.moveTo(key, held.mesh, target, { duration: 190 });
+        this.moveTo(key, held.mesh, target, { duration: SETTLE_MS });
       }
     });
 
@@ -258,9 +272,9 @@ export class TableView {
         if (isNew) {
           const from = drawTransform(6);
           this.place(held.mesh, from);
-          this.moveTo(key, held.mesh, target, { duration: DEAL_MS, delay: i * 40, arc: 0.6 });
+          this.moveTo(key, held.mesh, target, { duration: DEAL_MS, delay: i * 55, arc: 0.6 });
         } else {
-          this.moveTo(key, held.mesh, target, { duration: 200 });
+          this.moveTo(key, held.mesh, target, { duration: SETTLE_MS });
         }
       }
     });
