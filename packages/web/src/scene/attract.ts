@@ -35,9 +35,9 @@ const HOP_CYCLE = 26;
 /**
  * What the ring is made of.
  *
- * Weighted toward the cards that are unique to No Mercy - a menu is the one
- * place the game gets to say what it is, and a ring of plain number cards
- * says "UNO" rather than "UNO Show 'Em No Mercy".
+ * Weighted toward the cards that are unique to this variant - a menu is the
+ * one place the game gets to say what it is, and a ring of plain number cards
+ * says "an ordinary card game" rather than "the brutal one".
  */
 const SHOWCASE: ReadonlyArray<{ kind: CardKind; color?: Color; rank?: number }> = [
   { kind: 'wildDrawTen' },

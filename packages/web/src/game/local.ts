@@ -138,7 +138,7 @@ export class LocalGame {
   }
 
   /**
-   * Give the bots their chance to say "UNO!" - about themselves or about you.
+   * Give the bots their chance to shout - about themselves or about you.
    *
    * Separate from stepBot() because calling UNO is the one move that happens
    * off-turn, so it has to be offered after every state change rather than

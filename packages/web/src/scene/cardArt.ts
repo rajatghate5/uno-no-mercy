@@ -853,18 +853,31 @@ function drawBack(ctx: CanvasRenderingContext2D) {
   ctx.stroke();
   ctx.restore();
 
+  /*
+   * No wordmark.
+   *
+   * The back used to carry the name of the retail game, which is somebody
+   * else's trademark and has no business on a public repo. Nested rings do
+   * the same job - they give the back a centre to read from and make a face
+   * up card obviously different from a face down one - without borrowing a
+   * brand to do it.
+   */
   ctx.save();
   ctx.translate(w / 2, h / 2);
   ctx.rotate(TILT);
-  ctx.font = `800 104px "Bricolage Grotesque", Archivo, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineWidth = 12;
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = '#171722';
-  ctx.strokeText('UNO', 0, 0);
+  ctx.strokeStyle = RING;
+  for (let i = 0; i < 3; i++) {
+    ctx.globalAlpha = 0.85 - i * 0.22;
+    ctx.lineWidth = 9 - i * 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.2 - i * 20, h * 0.235 - i * 24, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
   ctx.fillStyle = RING;
-  ctx.fillText('UNO', 0, 0);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 13, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 
   grain(ctx, 0x5eed);

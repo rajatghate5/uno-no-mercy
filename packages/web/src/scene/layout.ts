@@ -121,9 +121,79 @@ const FAN_FROM = 11;
 const FAN_TO = 22;
 /** How small a card gets in the densest fan, as a fraction of its normal size. */
 const FAN_MIN_SCALE = 0.78;
+/**
+ * The narrowest sliver a card is allowed to show, as a fraction of its width.
+ *
+ * This is the floor that makes the hand scrollable rather than infinitely
+ * compressible. Without it, twenty-five cards on a phone were squeezed into
+ * whatever width happened to be going, and the answer was "not enough to see".
+ * Better to keep every card readable and let the row run off the edge, so
+ * long as you can move the row.
+ */
+const MIN_STEP = 0.42;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+interface FanMetrics {
+  scale: number;
+  cardW: number;
+  step: number;
+  totalWidth: number;
+  baseZ: number;
+  arc: number;
+  /** How far the row may be panned each way, in world units. 0 if it fits. */
+  overflow: number;
+}
+
+/**
+ * Everything about the shape of the fan, in one place.
+ *
+ * Shared deliberately: the camera-facing code needs the same depth the layout
+ * uses, and the scroll clamp needs the same width. An earlier version worked
+ * the depth out separately, which was fine until the layout started moving
+ * the row - after which the width budget was measured at a plane the cards
+ * were no longer on, and the fan quietly overflowed the viewport.
+ */
+export function fanMetrics(count: number, viewportAspect: number, widthBudget: number): FanMetrics {
+  const portrait = viewportAspect < 1;
+  const fan = clamp01((count - FAN_FROM) / (FAN_TO - FAN_FROM));
+  const scale = lerp(1, FAN_MIN_SCALE, fan);
+  const cardW = CARD_W * scale;
+
+  // Leave room for a whole card plus a margin, so the outermost card is fully
+  // on screen rather than half-cut by the viewport edge.
+  const usable = Math.max(1.2, widthBudget * 0.9 - cardW);
+  const ideal = usable / Math.max(1, count - 1);
+  // A small positive gap at low card counts, a readable sliver at high ones.
+  const step = Math.min(cardW * 1.12, Math.max(cardW * MIN_STEP, ideal));
+  const totalWidth = step * (count - 1);
+  const arc = Math.min(portrait ? 0.14 : 0.24, 0.05 * count) * lerp(1, 0.6, fan);
+
+  return {
+    scale,
+    cardW,
+    step,
+    totalWidth,
+    baseZ: handDepth(count, viewportAspect),
+    arc,
+    overflow: Math.max(0, (totalWidth - usable) / 2),
+  };
+}
+
+/** How far from the camera the hand row sits, for a hand of this size. */
+export function handDepth(count: number, viewportAspect: number): number {
+  const portrait = viewportAspect < 1;
+  const fan = clamp01((count - FAN_FROM) / (FAN_TO - FAN_FROM));
+  /*
+   * Shrinking the cards already lifts their bottom edge clear of the
+   * viewport, so this only has to make up the difference. Landscape gives a
+   * touch of push-back; portrait moves the row the other way, TOWARD the
+   * camera, because on a phone a shrunken hand otherwise leaves a band of
+   * empty felt below it the size of the hand itself.
+   */
+  return (portrait ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE) + lerp(0, portrait ? 0.5 : -0.2, fan);
+}
 
 /**
  * The viewer's own hand.
@@ -135,8 +205,12 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
  * The shrink is not decoration. At twenty-two cards the old layout kept every
  * card at full size, which pushed the row past the bottom of the viewport and
  * cut roughly the lower half off every one of them - so the hand that most
- * needs reading was the one you could not read. Scaling down and pushing back
- * keeps all twenty-five whole and on screen.
+ * needs reading was the one you could not read.
+ *
+ * Past MIN_STEP the fan stops compressing and starts OVERFLOWING, and
+ * `scrollX` slides it. That is the deliberate trade: on a narrow screen a
+ * twenty-five card hand cannot be both fully visible and legible, and legible
+ * with a scroll beats visible and useless.
  *
  * Whichever card is selected always comes back to FULL size and lifts clear
  * of the fan, which is what makes a sliver-width fan usable: you point at a
@@ -148,39 +222,13 @@ export function ownHandLayout(
   viewportAspect: number,
   /** Visible world-width at the hand, measured from the live camera. */
   widthBudget: number,
+  /** How far the row is panned, in world units. Clamped by the caller. */
+  scrollX = 0,
 ): Transform[] {
   if (count === 0) return [];
 
-  const portrait = viewportAspect < 1;
-
-  // 0 while the hand is small, ramping to 1 once it is genuinely crowded.
-  const fan = clamp01((count - FAN_FROM) / (FAN_TO - FAN_FROM));
-  const scale = lerp(1, FAN_MIN_SCALE, fan);
-  const cardW = CARD_W * scale;
-
-  // Leave room for a whole card plus a margin, so the outermost card is fully
-  // on screen rather than half-cut by the viewport edge.
-  const maxSpread = Math.max(1.2, widthBudget * 0.88 - cardW);
-  // A small positive gap at low card counts: overlapping cards are harder to
-  // aim at, and the hand only needs to fan once it runs out of room.
-  const step = Math.min(cardW * 1.12, maxSpread / Math.max(1, count - 1));
-  const totalWidth = step * (count - 1);
-  // A crowded fan gets a flatter arc, or the outer cards rotate so far that
-  // their corner marks end up underneath their neighbours.
-  const arc = Math.min(portrait ? 0.14 : 0.24, 0.05 * count) * lerp(1, 0.6, fan);
-
-  const restY = clearance(HAND_TILT) * scale;
-  /*
-   * Where the row sits front-to-back.
-   *
-   * Shrinking the cards already lifts their bottom edge clear of the
-   * viewport, so this only has to make up the difference. Landscape gives a
-   * touch of push-back; portrait moves the row the other way, TOWARD the
-   * camera, because on a phone a shrunken hand otherwise leaves a band of
-   * empty felt below it the size of the hand itself.
-   */
-  const baseZ =
-    (portrait ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE) + lerp(0, portrait ? 0.5 : -0.2, fan);
+  const m = fanMetrics(count, viewportAspect, widthBudget);
+  const restY = clearance(HAND_TILT) * m.scale;
 
   return Array.from({ length: count }, (_, i) => {
     const t = count === 1 ? 0 : i / (count - 1) - 0.5;
@@ -195,10 +243,10 @@ export function ownHandLayout(
      * around every time the pointer moves.
      */
     const away = selected >= 0 && !isSel ? Math.sign(i - selected) : 0;
-    const nudge = away === 0 ? 0 : away * step * 0.55 * Math.exp(-Math.abs(i - selected) / 1.6);
+    const nudge = away === 0 ? 0 : away * m.step * 0.55 * Math.exp(-Math.abs(i - selected) / 1.6);
 
-    const x = t * totalWidth + nudge;
-    const z = baseZ - Math.abs(t) * arc * 2.6;
+    const x = t * m.totalWidth + nudge - scrollX;
+    const z = m.baseZ - Math.abs(t) * m.arc * 2.6;
 
     if (isSel) {
       return {
@@ -218,9 +266,9 @@ export function ownHandLayout(
         // Laid back toward the felt, but tipped up to face the camera.
         -Math.PI / 2 + HAND_TILT,
         0,
-        -t * arc,
+        -t * m.arc,
       ],
-      scale,
+      scale: m.scale,
     } satisfies Transform;
   });
 }

@@ -1,8 +1,13 @@
-# UNO — Show 'Em No Mercy
+# No Mercy
 
-A browser implementation of **UNO Show 'Em No Mercy**: the 168-card edition with
-stackable draw cards, hand-swapping 7s, hand-passing 0s, and the Mercy Rule that
-knocks out anyone who reaches 25 cards.
+A browser card game: 168 cards, stackable draw cards, hand-swapping 7s,
+hand-passing 0s, and a mercy rule that knocks out anyone who reaches 25 cards.
+
+An unofficial, non-commercial fan implementation of the rules published in
+Mattel's HWV18 instruction sheet. Not affiliated with, endorsed by or
+sponsored by Mattel. No trademarked name or artwork is reproduced here: the
+rules are cited as a source, and every card face in this repo is drawn from
+scratch in `packages/web/src/scene/cardArt.ts`.
 
 Real 3D cards on a felt table — Three.js, WebGL, actual shadows. Play solo
 against bots, or host a room and share a four-character code.

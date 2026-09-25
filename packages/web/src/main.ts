@@ -24,11 +24,10 @@ import { AttractScene } from './scene/attract.js';
 import { createStage, webglAvailable } from './scene/table.js';
 import { TableView } from './scene/tableView.js';
 import {
-  HAND_Z_LANDSCAPE,
-  HAND_Z_PORTRAIT,
   seatAngle,
   seatPosition,
   seatSqueeze,
+  handDepth,
   visibleWidthAtHand,
 } from './scene/layout.js';
 import { TABLE_RADIUS } from './scene/table.js';
@@ -198,9 +197,18 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
  */
 function handWidthBudget(): number {
   const aspect = window.innerWidth / window.innerHeight;
-  const handZ = aspect < 1 ? HAND_Z_PORTRAIT : HAND_Z_LANDSCAPE;
+  /*
+   * Ask the layout where the row is rather than assuming.
+   *
+   * This used the fixed HAND_Z constants, which stopped being true once the
+   * layout began sliding the row to fit a big hand. The budget was then being
+   * measured on a plane the cards were no longer on - and since portrait
+   * moves them TOWARD the camera, where less world-width is visible, the fan
+   * was handed more room than existed and ran off both edges.
+   */
+  const count = game?.view()?.players.find((p) => p.id === game?.youId)?.hand?.length ?? 7;
   const cam = stage.camera.position;
-  const distance = Math.hypot(cam.y - 0.46, cam.z - handZ);
+  const distance = Math.hypot(cam.y - 0.46, cam.z - handDepth(count, aspect));
   return visibleWidthAtHand(aspect, stage.camera.fov, distance);
 }
 
@@ -382,6 +390,22 @@ function refreshHud() {
     hud.chat(g.chat);
     hud.typing(g.typingNames?.() ?? []);
   }
+
+  hud.handScroll(
+    view.handScrollable
+      ? {
+          at: view.handScrollAt,
+          onPan: (dir) => {
+            // A click moves about a third of a screen, which is far enough to
+            // feel like progress and short enough to keep your place.
+            if (view.panHand(dir * handWidthBudget() * 0.34)) {
+              relayout();
+              refreshHud();
+            }
+          },
+        }
+      : null,
+  );
   hud.corner([
     {
       label: sound.enabled ? 'Sound on' : 'Sound off',
@@ -492,7 +516,7 @@ function renderUnoShout(g: PlayableGame, state: RedactedState): void {
 
   if (at === g.youId) {
     return hud.uno({
-      label: 'UNO!',
+      label: 'LAST CARD!',
       sub: 'say it before they do',
       kind: 'call',
       onClick: () => g.apply({ type: 'callUno', player: g.youId }),
@@ -501,7 +525,7 @@ function renderUnoShout(g: PlayableGame, state: RedactedState): void {
 
   const name = state.players.find((p) => p.id === at)?.name ?? 'they';
   hud.uno({
-    label: 'UNO!',
+    label: 'LAST CARD!',
     sub: `catch ${name} — they forgot`,
     kind: 'catch',
     onClick: () => g.apply({ type: 'catchUno', player: g.youId }),
@@ -586,7 +610,39 @@ function playable(): { hand: readonly { id: string }[] } | null {
   return { hand: state.players.find((p) => p.id === g.youId)?.hand ?? [] };
 }
 
+/**
+ * Panning the hand.
+ *
+ * Past about twenty cards on a narrow screen the fan stops compressing and
+ * starts running off both edges - legible cards you can scroll to beat
+ * illegible ones that all fit. Drag, swipe or wheel moves the row.
+ *
+ * A drag must never also count as playing a card, so the pointerup handler
+ * checks how far the pointer travelled before committing. The threshold is in
+ * CSS pixels because that is what a finger's wobble is measured in.
+ */
+const DRAG_SLOP = 7;
+let dragFrom: { x: number; y: number } | null = null;
+let dragged = false;
+
+/** Screen pixels to world units at the hand's depth. */
+function worldPerPixel(): number {
+  return handWidthBudget() / Math.max(1, window.innerWidth);
+}
+
 canvas.addEventListener('pointermove', (e) => {
+  if (dragFrom) {
+    const dx = e.clientX - dragFrom.x;
+    if (!dragged && Math.abs(dx) > DRAG_SLOP && Math.abs(dx) > Math.abs(e.clientY - dragFrom.y)) {
+      dragged = true;
+    }
+    if (dragged) {
+      // Drag right, the row follows right - so the scroll offset goes down.
+      if (view.panHand(-dx * worldPerPixel())) relayout();
+      dragFrom = { x: e.clientX, y: e.clientY };
+      return;
+    }
+  }
   if (isTouch) return; // a finger "moving" is a drag, not a hover
   if (!playable()) return;
   const hit = view.pick(e.clientX, e.clientY, stage.camera);
@@ -596,8 +652,42 @@ canvas.addEventListener('pointermove', (e) => {
   }
 });
 
+canvas.addEventListener('wheel', (e) => {
+  if (!view.handScrollable) return;
+  // Trackpads report horizontal intent in deltaX; a wheel only has deltaY.
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (view.panHand(delta * worldPerPixel())) {
+    e.preventDefault();
+    relayout();
+    refreshHud();
+  }
+}, { passive: false });
+
+canvas.addEventListener('pointercancel', () => {
+  dragFrom = null;
+  dragged = false;
+});
+
 canvas.addEventListener('pointerdown', (e) => {
   sound.resume();
+  dragFrom = { x: e.clientX, y: e.clientY };
+  dragged = false;
+});
+
+/*
+ * Committing happens on pointerUP, not down.
+ *
+ * It has to: the difference between playing a card and scrolling the hand is
+ * whether the pointer moved afterwards, and on pointerdown that is not known
+ * yet. Acting on the press meant every attempt to swipe the row past a card
+ * played that card instead.
+ */
+canvas.addEventListener('pointerup', (e) => {
+  const wasDrag = dragged;
+  dragFrom = null;
+  dragged = false;
+  if (wasDrag) return;
+
   const ctx = playable();
   if (!ctx) return;
 

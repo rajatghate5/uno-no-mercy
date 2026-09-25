@@ -306,7 +306,7 @@ export class Screens {
 
       this.panel(
         el('header', { class: 'masthead' }, [
-          el('h1', { html: "UNO <span class='mercy'>No Mercy</span>" }),
+          el('h1', { html: "No <span class='mercy'>Mercy</span>" }),
           el('p', {
             class: 'sub',
             text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
@@ -722,7 +722,7 @@ function houseRuleControls(
         onRules({ zeroPass: !rules.zeroPass }),
       ),
       toggle(
-        'Call UNO',
+        'Call last card',
         'One card left? Say it, or an opponent can catch you for 2',
         rules.unoCalls,
         () => onRules({ unoCalls: !rules.unoCalls }),
@@ -846,6 +846,7 @@ export class Hud {
   private unoBox: HTMLElement;
   private chatBox: HTMLElement | null = null;
   private chatTab: HTMLElement | null = null;
+  private scrollBox: HTMLElement | null = null;
   private chatInput: HTMLInputElement | null = null;
   /** Unread bookkeeping, so a closed drawer still says something arrived. */
   private chatCount = 0;
@@ -1048,7 +1049,7 @@ export class Hud {
   }
 
   /**
-   * The "UNO!" shout - yours to claim, or theirs to lose.
+   * The last-card shout - yours to claim, or theirs to lose.
    *
    * One button either way, because at the table it is one word either way:
    * whoever says it first wins the exchange.
@@ -1183,6 +1184,37 @@ export class Hud {
       );
     }
     box.scrollTop = box.scrollHeight;
+  }
+
+  /**
+   * Arrows for a hand too wide to fit.
+   *
+   * Drag and wheel both already work, but neither announces itself. These say
+   * "there is more of your hand over there" and give a mouse a way to get at
+   * it without learning that the felt is draggable.
+   */
+  handScroll(state: { at: number; onPan: (dir: -1 | 1) => void } | null): void {
+    if (!state) {
+      this.scrollBox?.remove();
+      this.scrollBox = null;
+      return;
+    }
+    if (!this.scrollBox) {
+      this.scrollBox = el('div', { class: 'hand-scroll' }, [
+        el('button', { 'aria-label': 'Earlier cards', text: '‹' }),
+        el('button', { 'aria-label': 'Later cards', text: '›' }),
+      ]);
+      this.root.append(this.scrollBox);
+    }
+    const [left, right] = [...this.scrollBox.children] as HTMLButtonElement[];
+    if (left) {
+      left.onclick = () => state.onPan(-1);
+      left.disabled = state.at <= -0.99;
+    }
+    if (right) {
+      right.onclick = () => state.onPan(1);
+      right.disabled = state.at >= 0.99;
+    }
   }
 
   /** Who is mid-sentence, by name. Empty clears the line. */

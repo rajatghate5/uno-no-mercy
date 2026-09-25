@@ -52,7 +52,7 @@ export function describeEvent(e: GameEvent, name: (id: string) => string): LogEn
     case 'unoRisked':
       return { text: `${name(e.player)} is on one card`, tone: 'accent' };
     case 'unoCalled':
-      return { text: `${name(e.player)}: UNO!`, tone: 'good' };
+      return { text: `${name(e.player)} called last card`, tone: 'good' };
     case 'unoCaught':
       return { text: `${name(e.by)} caught ${name(e.player)} - draw 2!`, tone: 'bad' };
     case 'reshuffled':

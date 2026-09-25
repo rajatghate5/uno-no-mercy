@@ -17,6 +17,7 @@ import { Animator, ease } from './anim.js';
 import { makeCard, releaseCardMaterial, revealCard, setCardLit, type CardObject } from './card3d.js';
 import {
   discardTransform,
+  fanMetrics,
   drawTransform,
   opponentHandLayout,
   seatSqueeze,
@@ -60,6 +61,9 @@ export class TableView {
 
   /** Index into the viewer's hand that is currently raised. */
   selected = -1;
+  /** How far the hand row is panned, in world units. */
+  private handScroll = 0;
+  private handOverflow = 0;
   private lastHandIds: string[] = [];
   private seatCount = 0;
   private viewerIndex = 0;
@@ -213,7 +217,13 @@ export class TableView {
     }
 
     if (this.selected >= hand.length) this.selected = hand.length - 1;
-    const targets = ownHandLayout(hand.length, this.selected, aspect, widthBudget);
+
+    // Re-clamp every layout: the hand changes size constantly, and a scroll
+    // left over from a twenty-card hand would push a five-card one off screen.
+    this.handOverflow = fanMetrics(hand.length, aspect, widthBudget).overflow;
+    this.handScroll = Math.max(-this.handOverflow, Math.min(this.handOverflow, this.handScroll));
+
+    const targets = ownHandLayout(hand.length, this.selected, aspect, widthBudget, this.handScroll);
     const isFirstDeal = !this.dealt;
 
     /*
@@ -313,6 +323,33 @@ export class TableView {
   }
 
   // --- interaction ---------------------------------------------------------
+
+  /** True when the hand is wider than the screen and can be panned. */
+  get handScrollable(): boolean {
+    return this.handOverflow > 0.01;
+  }
+
+  /** Where the pan sits, as -1..1. Drives the edge affordances. */
+  get handScrollAt(): number {
+    return this.handOverflow > 0.01 ? this.handScroll / this.handOverflow : 0;
+  }
+
+  /**
+   * Pan the hand by `dx` world units. Returns true if anything moved, so the
+   * caller can skip a relayout when the row is already against its stop.
+   */
+  panHand(dx: number): boolean {
+    if (this.handOverflow <= 0.01) return false;
+    const next = Math.max(-this.handOverflow, Math.min(this.handOverflow, this.handScroll + dx));
+    if (Math.abs(next - this.handScroll) < 1e-4) return false;
+    this.handScroll = next;
+    return true;
+  }
+
+  /** Reset the pan, for a new deal. */
+  resetHandScroll(): void {
+    this.handScroll = 0;
+  }
 
   /** Which hand index is under the pointer, or -1. */
   pick(clientX: number, clientY: number, camera: THREE_Camera): number {
