@@ -41,6 +41,51 @@ const PLAY_MS = 700;
 /** A card already on the table shuffling along to make room. */
 const SETTLE_MS = 290;
 
+/*
+ * The hover is a SPRING, not a tween, and that is the whole point.
+ *
+ * A tween has a start. Sweeping a pointer along the fan changes every card's
+ * destination several times a second, and because a keyed tween replaces the
+ * one before it, each change restarted the motion from zero - throwing away
+ * the progress of the last and dropping the card back onto the slow part of
+ * the easing curve. Eased in and out, as the neighbours were, that is worst of
+ * all: a tween restarted every 80ms never leaves its own slow start, so the
+ * row appeared to lag the pointer and then lurch to catch up.
+ *
+ * Exponential approach has no start to restart. Every frame the card moves a
+ * fixed FRACTION of the remaining distance, so re-aiming it is free: the
+ * target simply changes and the motion carries on from the speed it already
+ * had. Sweep the pointer as fast as you like and nothing stutters, because
+ * nothing is ever interrupted.
+ *
+ * These are time constants in milliseconds - the time to close 63% of the gap.
+ * The raised card is quickest because it is the one you asked for; the row
+ * settles behind it a touch slower so the fan reads as following the lift
+ * rather than racing it.
+ */
+const FOLLOW_LIFT_MS = 70;
+const FOLLOW_ROW_MS = 115;
+/** Close enough to stop stepping and snap, so an idle hand costs nothing. */
+const FOLLOW_DONE = 0.0015;
+/**
+ * The largest frame step the spring will honour.
+ *
+ * A backgrounded tab hands back a dt of several seconds on its first frame,
+ * and 1 - exp(-3000/70) is indistinguishable from 1: every card would teleport
+ * to its slot the moment you came back to the window.
+ */
+const FOLLOW_MAX_DT = 50;
+
+/**
+ * How close two transforms must be to count as the same destination.
+ *
+ * Loose on purpose: the point is not floating-point equality, it is "close
+ * enough that re-aiming at it would only restart the tween". A tween restarted
+ * every frame never gets past the fast part of its curve, which is what turns a
+ * fan of cards into a fan of cards that never quite arrives.
+ */
+const SAME_TARGET_EPS = 0.002;
+
 /** How many face-down cards to actually render for a pile. */
 const MAX_PILE_MESHES = 14;
 const MAX_DISCARD_MESHES = 8;
@@ -56,6 +101,13 @@ export class TableView {
   readonly animator = new Animator();
 
   private held = new Map<string, Held>();
+  /**
+   * Hand cards currently chasing their slot, keyed to their time constant.
+   *
+   * Membership is ownership: a card in here is driven by stepHand() and must
+   * not also have a tween, which is why moveTo() evicts its key.
+   */
+  private follow = new Map<string, number>();
   private raycaster = new Raycaster();
   private pointer = new Vector2();
 
@@ -87,6 +139,7 @@ export class TableView {
   /** Reset between games so the next deal starts from an empty table. */
   reset(): void {
     this.animator.clear();
+    this.follow.clear();
     for (const { mesh } of this.held.values()) this.root.remove(mesh);
     this.held.clear();
     this.lastHandIds = [];
@@ -115,6 +168,8 @@ export class TableView {
     };
     const toScale = to.scale ?? 1;
     const arc = opts.arc ?? 0;
+    // A tween and the spring must never write the same mesh in one frame.
+    this.follow.delete(key);
 
     this.animator.tween({
       key,
@@ -256,12 +311,90 @@ export class TableView {
           arc: 0.75,
           easing: ease.outQuint,
         });
-      } else {
-        this.moveTo(key, held.mesh, target, { duration: SETTLE_MS });
+      } else if (!sameTransform(held.target, target)) {
+        /*
+         * Only cards that are actually going somewhere new are re-aimed.
+         *
+         * Without this guard a hover re-tweened all twenty-five cards, most of
+         * them to the pixel they already occupied - and because a keyed tween
+         * REPLACES the one before it, each of those restarts threw away the
+         * progress of the last. The card you were pointing at rose in a series
+         * of little jerks instead of one motion, and the card you had just left
+         * took as long to come down as you took to move the mouse. Comparing
+         * against the recorded target rather than the mesh's live position is
+         * the point: a card mid-flight to the right place must be left alone.
+         */
+        // Hand it to the spring rather than tweening it. Re-aiming is free,
+        // so a pointer sweeping the row costs nothing and interrupts nothing.
+        this.animator.cancel(key);
+        this.follow.set(key, i === this.selected ? FOLLOW_LIFT_MS : FOLLOW_ROW_MS);
       }
+      held.target = target;
     });
 
     this.lastHandIds = hand.map((c) => c.id);
+  }
+
+  /**
+   * Advance the hand's springs. Called once per frame, before the render.
+   *
+   * Nothing here has a schedule: each card simply moves a fraction of the way
+   * to wherever `held.target` says it belongs right now. That is what makes a
+   * hover re-aimable mid-flight - see FOLLOW_LIFT_MS. A card that arrives is
+   * dropped from the map, so an idle hand does no work at all.
+   */
+  stepHand(dtMs: number): void {
+    if (this.follow.size === 0) return;
+    const dt = Math.min(dtMs, FOLLOW_MAX_DT);
+
+    for (const [key, tau] of this.follow) {
+      const held = this.held.get(key);
+      const to = held?.target;
+      if (!held || !to) {
+        this.follow.delete(key);
+        continue;
+      }
+
+      const m = held.mesh;
+      // Frame-rate independent: the same fraction of the gap per millisecond,
+      // whether the display runs at 60Hz or 120.
+      const k = 1 - Math.exp(-dt / tau);
+      const scale = to.scale ?? 1;
+
+      m.position.x += (to.pos[0] - m.position.x) * k;
+      m.position.y += (to.pos[1] - m.position.y) * k;
+      m.position.z += (to.pos[2] - m.position.z) * k;
+      m.rotation.x += shortestAngle(m.rotation.x, to.rot[0]) * k;
+      m.rotation.y += shortestAngle(m.rotation.y, to.rot[1]) * k;
+      m.rotation.z += shortestAngle(m.rotation.z, to.rot[2]) * k;
+      m.scale.setScalar(m.scale.x + (scale - m.scale.x) * k);
+
+      const gap =
+        Math.abs(to.pos[0] - m.position.x) +
+        Math.abs(to.pos[1] - m.position.y) +
+        Math.abs(to.pos[2] - m.position.z) +
+        Math.abs(scale - m.scale.x);
+      if (gap < FOLLOW_DONE) {
+        // Snap, so a card at rest is exactly where the layout says and not an
+        // exponential's worth of epsilon away from it.
+        this.place(m, to);
+        this.follow.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Re-lay the viewer's hand and nothing else.
+   *
+   * A hover, a drag or a pan moves no other card on the table, but the only way
+   * in used to be the full update() - so pointing at a card also re-walked every
+   * opponent's fan, the discard stack and the draw pile, dozens of times a
+   * second while the pointer swept the row. The live set is deliberately thrown
+   * away here: retiring keys is update()'s job, and a set this pass never filled
+   * would look like every card on the table had just left the game.
+   */
+  reflowHand(state: RedactedState, aspect: number, widthBudget: number): void {
+    this.layoutOwnHand(state, aspect, widthBudget, new Set());
   }
 
   private layoutOpponents(state: RedactedState, aspect: number, live: Set<string>): void {
@@ -351,7 +484,19 @@ export class TableView {
     this.handScroll = 0;
   }
 
-  /** Which hand index is under the pointer, or -1. */
+  /**
+   * Which hand index is under the pointer, or -1.
+   *
+   * The raised card wins over any card that is merely nearer. Raising a card
+   * moves it most of a card up the screen, which slides it under the edges of
+   * its neighbours - so across a band of pixels several cards wide the nearest
+   * hit is the NEIGHBOUR while the card you are pointing at is the one in the
+   * air. Taking the nearest hit there hands the selection back and forth across
+   * that band as the pointer creeps along it. Preferring the card already raised
+   * turns the band into plain hysteresis: it keeps its place until the pointer
+   * leaves it altogether, and a sweep along the row then steps one card at a
+   * time in one direction.
+   */
   pick(clientX: number, clientY: number, camera: THREE_Camera): number {
     this.pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, camera);
@@ -362,8 +507,12 @@ export class TableView {
 
     const hits = this.raycaster.intersectObjects(meshes, false);
     if (hits.length === 0) return -1;
-    const id = (hits[0]!.object as CardObject).userData.cardId.replace(/^hand-/, '');
-    return this.lastHandIds.indexOf(id);
+
+    const indexOf = (hit: (typeof hits)[number]) =>
+      this.lastHandIds.indexOf((hit.object as CardObject).userData.cardId.replace(/^hand-/, ''));
+
+    if (this.selected >= 0 && hits.some((h) => indexOf(h) === this.selected)) return this.selected;
+    return indexOf(hits[0]!);
   }
 
   /** World position of a hand card, for anchoring HTML labels to it. */
@@ -386,6 +535,16 @@ function hashId(id: string): number {
     h = Math.imul(h, 16777619);
   }
   return (h >>> 0) / 4294967296;
+}
+
+/** Are these the same destination, to within a distance nobody can see? */
+function sameTransform(a: Transform | undefined, b: Transform): boolean {
+  if (!a) return false;
+  for (let i = 0; i < 3; i++) {
+    if (Math.abs(a.pos[i]! - b.pos[i]!) > SAME_TARGET_EPS) return false;
+    if (Math.abs(a.rot[i]! - b.rot[i]!) > SAME_TARGET_EPS) return false;
+  }
+  return Math.abs((a.scale ?? 1) - (b.scale ?? 1)) <= SAME_TARGET_EPS;
 }
 
 /** Rotate the short way round, so a card never spins 350 degrees to reach -10. */

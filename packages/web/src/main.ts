@@ -122,6 +122,8 @@ function frame(now: number) {
   const dt = now - last;
   last = now;
   view.animator.update(dt);
+  // The hand's springs, which is how a hover stays re-aimable mid-motion.
+  view.stepHand(dt);
   // Scenery runs whenever the table is empty, which is every menu, the lobby
   // and the stats screen - no explicit start/stop at each transition to get
   // out of step with.
@@ -596,10 +598,31 @@ function finishGame(g: PlayableGame) {
 
 // --- pointer interaction ---------------------------------------------------
 
+/**
+ * Re-run the layout without a state change - a hover, a pan, an arrow click.
+ *
+ * The width budget MUST come from handWidthBudget(). It was passing
+ * `stage.camera.fov` here, a field that happens to be a number and is
+ * therefore a legal argument, but it is fifty-odd DEGREES being read as
+ * fifty-odd WORLD UNITS. The fan was handed roughly five times the room that
+ * exists, so it kept its cards a comfortable 1.12 widths apart and ran a
+ * twenty-card hand some twenty units wide across a nine-unit viewport. The
+ * overflow came out as zero at the same time, which took the scroll away too:
+ * the hand blew off both edges on the first hover and could not be panned
+ * back. The initial deal looked right because that path (onStateChange) was
+ * always measuring properly - only hovering broke it.
+ */
 function relayout() {
   const g = game;
   const state = g?.view();
-  if (state) view.update(state, [], window.innerWidth / window.innerHeight, stage.camera.fov);
+  if (state) {
+    /*
+     * Hand only. A hover or a pan moves no opponent's card, no pile and no
+     * discard, but this went through the full update() - so sweeping a pointer
+     * along the fan re-walked the entire table dozens of times a second.
+     */
+    view.reflowHand(state, window.innerWidth / window.innerHeight, handWidthBudget());
+  }
 }
 
 function playable(): { hand: readonly { id: string }[] } | null {
@@ -795,6 +818,29 @@ function watchLobby(net: NetworkGame) {
   };
   const off = net.subscribe(render);
   render();
+}
+
+// --- dev handle ------------------------------------------------------------
+
+/*
+ * A handle for the browser-driven checks, in dev builds only.
+ *
+ * The layout bugs in this file - a fan wider than the viewport, a budget
+ * measured on the wrong plane - are all things you can only catch by measuring
+ * where the cards actually ARE, and doing that through clicks alone is slower
+ * than the bugs deserve. `import.meta.env.DEV` is statically false in a
+ * production build, so the bundler drops this whole branch: there is nothing to
+ * remember to strip and nothing to leak.
+ */
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__table = {
+    get game() {
+      return game;
+    },
+    view,
+    stage,
+    handWidthBudget,
+  };
 }
 
 // --- boot ------------------------------------------------------------------

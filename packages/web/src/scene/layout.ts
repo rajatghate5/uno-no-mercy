@@ -132,6 +132,9 @@ const FAN_MIN_SCALE = 0.78;
  */
 const MIN_STEP = 0.42;
 
+/** How many cards either side of the raised one shuffle out of its way. */
+const NUDGE_REACH = 3;
+
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -241,9 +244,17 @@ export function ownHandLayout(
      * overlapping its edges, which is exactly the occlusion the lift exists
      * to undo. The push falls off fast, so the rest of the fan does not slide
      * around every time the pointer moves.
+     *
+     * Past NUDGE_REACH it is cut to exactly zero rather than left to trail off
+     * asymptotically. The tail was worth about a hundredth of a card, far too
+     * little to see, but it made every card in the hand a card whose target
+     * MOVED on every pointer step - so the whole fan restarted its tween
+     * thirty times a second while the pointer swept across it. Zero is a
+     * target the view can recognise as unchanged and leave alone.
      */
-    const away = selected >= 0 && !isSel ? Math.sign(i - selected) : 0;
-    const nudge = away === 0 ? 0 : away * m.step * 0.55 * Math.exp(-Math.abs(i - selected) / 1.6);
+    const d = Math.abs(i - selected);
+    const away = selected >= 0 && !isSel && d <= NUDGE_REACH ? Math.sign(i - selected) : 0;
+    const nudge = away === 0 ? 0 : away * m.step * 0.55 * Math.exp(-d / 1.6);
 
     const x = t * m.totalWidth + nudge - scrollX;
     const z = m.baseZ - Math.abs(t) * m.arc * 2.6;
