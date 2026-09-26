@@ -14,7 +14,7 @@ against bots, or host a room and share a four-character code.
 
 ## Play it
 
-### → **https://rajatghate5.github.io/uno-no-mercy/**
+### → **https://rajatghate5.github.io/no-mercy/**
 
 Nothing to install, nothing to run. It opens in any modern browser, desktop or
 phone, and starts immediately.
@@ -267,7 +267,7 @@ under the discard reaches the same place and keeps card conservation exact.)
 `.github/workflows/pages.yml` builds and publishes on every push to `main`.
 Enable it once: **Settings → Pages → Source → GitHub Actions**. The site lands
 at `https://<user>.github.io/<repo>/` — for this repo,
-<https://rajatghate5.github.io/uno-no-mercy/>.
+<https://rajatghate5.github.io/no-mercy/>.
 
 **Pages serves static files only — it cannot run the WebSocket server.** The
 workflow therefore ships the solo-vs-bots game, and the client hides the online
@@ -319,7 +319,7 @@ see `resolveServer()`.
 |----------|---------|---------|-------|
 | `VITE_UNO_SERVER` | client (build time) | — | Explicit server address. Must be `wss://` if the page is served over HTTPS |
 | `VITE_UNO_SAME_ORIGIN` | client (build time) | — | `1` when the game server also serves the page (set by the Dockerfile) |
-| `BASE_PATH` | client (build time) | `/` | Sub-path for project-site hosting, e.g. `/uno-no-mercy/` |
+| `BASE_PATH` | client (build time) | `/` | Sub-path for project-site hosting, e.g. `/no-mercy/` |
 | `PORT` | server | `4040` | Set automatically by most hosts |
 | `HOST` | server | `0.0.0.0` | Bind address |
 | `UNO_BOT_DELAY_MS` | server | `700` | Bot think-time. Tests set `0` |

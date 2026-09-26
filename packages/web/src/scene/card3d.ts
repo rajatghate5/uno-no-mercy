@@ -14,7 +14,7 @@ import {
   MeshStandardMaterial,
   type Texture,
 } from 'three';
-import type { Card } from '@uno/engine';
+import type { Card } from '@mercy/engine';
 import { backFaceTexture, faceTexture } from './cardArt.js';
 
 /** World units. The table is ~10 across, so a card is ~1.0 x 1.5. */

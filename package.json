@@ -1,14 +1,14 @@
 {
-  "name": "uno-no-mercy",
+  "name": "no-mercy",
   "private": true,
   "type": "module",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "bun --filter @uno/web dev",
+    "dev": "bun --filter @mercy/web dev",
     "serve": "bun run packages/server/src/main.ts",
-    "build": "bun --filter @uno/web build",
+    "build": "bun --filter @mercy/web build",
     "test": "bun test",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web/tsconfig.json",
     "sim": "bun run packages/engine/test/simulate.ts",

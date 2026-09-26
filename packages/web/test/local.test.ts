@@ -11,7 +11,7 @@
  */
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
-import { decide, emptyMemory } from '@uno/bots';
+import { decide, emptyMemory } from '@mercy/bots';
 import { LocalGame } from '../src/game/local.js';
 
 describe('local game', () => {

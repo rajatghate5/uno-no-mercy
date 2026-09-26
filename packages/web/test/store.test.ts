@@ -77,7 +77,7 @@ describe('store', () => {
   });
 
   test('corrupt stored data is treated as no history', () => {
-    localStorage.setItem('uno-no-mercy:matches', 'not json at all');
+    localStorage.setItem('no-mercy:matches', 'not json at all');
     const s = new Store();
     expect(s.recent()).toEqual([]);
     expect(s.stats().games).toBe(0);

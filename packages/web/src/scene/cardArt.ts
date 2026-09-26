@@ -20,7 +20,7 @@
  */
 
 import { CanvasTexture, LinearFilter, SRGBColorSpace, type Texture } from 'three';
-import { COLORS, type Card, type CardKind, type Color } from '@uno/engine';
+import { COLORS, type Card, type CardKind, type Color } from '@mercy/engine';
 
 export const CARD_PX = { w: 320, h: 480 };
 

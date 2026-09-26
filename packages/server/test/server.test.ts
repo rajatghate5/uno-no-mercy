@@ -5,7 +5,7 @@
  * exercise the wire format and the authority boundary rather than mocks.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { PROTOCOL_VERSION, type ServerMessage } from '@uno/protocol';
+import { PROTOCOL_VERSION, type ServerMessage } from '@mercy/protocol';
 import { createServer } from '../src/server.js';
 
 let handle: ReturnType<typeof createServer>;

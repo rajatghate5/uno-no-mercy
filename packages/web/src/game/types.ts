@@ -7,8 +7,8 @@
  * optional here.
  */
 
-import type { Action, GameEvent, RedactedState } from '@uno/engine';
-import type { ChatMessage } from '@uno/protocol';
+import type { Action, GameEvent, RedactedState } from '@mercy/engine';
+import type { ChatMessage } from '@mercy/protocol';
 import type { LogEntry } from './narrate.js';
 
 export interface PlayableGame {

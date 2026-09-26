@@ -7,8 +7,8 @@
  * another player's hand because that data never crosses the wire.
  */
 
-import type { Action, Color, GameEvent, RedactedState } from '@uno/engine';
-import type { Difficulty } from '@uno/bots';
+import type { Action, Color, GameEvent, RedactedState } from '@mercy/engine';
+import type { Difficulty } from '@mercy/bots';
 
 export const PROTOCOL_VERSION = 1;
 

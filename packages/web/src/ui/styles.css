@@ -7,7 +7,7 @@
  * ~112KB for every weight the UI uses, and they work offline.
  *
  * Relative url() on purpose: Vite fingerprints and rewrites these, so they
- * keep working under the /uno-no-mercy/ base on GitHub Pages. A root-absolute
+ * keep working under the /no-mercy/ base on GitHub Pages. A root-absolute
  * /fonts/... path would 404 there.
  */
 @font-face {

@@ -1,5 +1,5 @@
 {
-  "name": "@uno/protocol",
+  "name": "@mercy/protocol",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/index.ts",
@@ -7,7 +7,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@uno/engine": "workspace:*",
-    "@uno/bots": "workspace:*"
+    "@mercy/engine": "workspace:*",
+    "@mercy/bots": "workspace:*"
   }
 }

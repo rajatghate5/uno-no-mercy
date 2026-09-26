@@ -12,7 +12,7 @@
  */
 
 import { Group, Raycaster, Vector2, Vector3, type Scene } from 'three';
-import { playableFor, type Card, type GameEvent, type RedactedState } from '@uno/engine';
+import { playableFor, type Card, type GameEvent, type RedactedState } from '@mercy/engine';
 import { Animator, ease } from './anim.js';
 import { makeCard, releaseCardMaterial, revealCard, setCardLit, type CardObject } from './card3d.js';
 import {

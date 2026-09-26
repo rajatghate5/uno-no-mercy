@@ -4,7 +4,7 @@
 #   docker compose up -d   ->   http://localhost:4040
 services:
   uno:
-    container_name: uno-no-mercy
+    container_name: no-mercy
     build: .
     restart: unless-stopped
     environment:

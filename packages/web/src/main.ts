@@ -10,12 +10,12 @@
  */
 
 import { Vector3 } from 'three';
-import { COLORS, type Color, type GameOverReason, type RedactedState } from '@uno/engine';
-import type { Difficulty } from '@uno/bots';
+import { COLORS, type Color, type GameOverReason, type RedactedState } from '@mercy/engine';
+import type { Difficulty } from '@mercy/bots';
 import { LocalGame } from './game/local.js';
 import { NetworkGame } from './game/network.js';
 import { Sound } from './game/sound.js';
-import { DEFAULT_ROOM_SETTINGS } from '@uno/protocol';
+import { DEFAULT_ROOM_SETTINGS } from '@mercy/protocol';
 import { resolveServer } from './game/serverUrl.js';
 import { Store } from './game/store.js';
 import type { PlayableGame } from './game/types.js';

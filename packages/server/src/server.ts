@@ -26,7 +26,7 @@ import {
   type ErrorCode,
   type RoomSettings,
   type ServerMessage,
-} from '@uno/protocol';
+} from '@mercy/protocol';
 import { BOT_DELAY_MS, Room, makeCode, type Seat } from './room.js';
 
 interface SocketData {
@@ -366,7 +366,7 @@ export function createServer(opts: ServerOptions = {}) {
       }
 
       return new Response(
-        'uno-no-mercy server is running. Build the client (bun run build) or use the Vite dev server.',
+        'no-mercy server is running. Build the client (bun run build) or use the Vite dev server.',
         { status: 200, headers: { 'content-type': 'text/plain' } },
       );
     },

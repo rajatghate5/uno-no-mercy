@@ -23,7 +23,7 @@ import {
   type Card,
   type Color,
   type RedactedState,
-} from '@uno/engine';
+} from '@mercy/engine';
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 

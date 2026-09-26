@@ -1,11 +1,11 @@
 {
-  "name": "@uno/server",
+  "name": "@mercy/server",
   "version": "0.1.0",
   "type": "module",
   "main": "./src/main.ts",
   "dependencies": {
-    "@uno/engine": "workspace:*",
-    "@uno/bots": "workspace:*",
-    "@uno/protocol": "workspace:*"
+    "@mercy/engine": "workspace:*",
+    "@mercy/bots": "workspace:*",
+    "@mercy/protocol": "workspace:*"
   }
 }

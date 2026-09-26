@@ -3,7 +3,7 @@
  *
  * Useful for eyeballing a change to config/deck.yml against the real deck.
  */
-import { buildDeck, DEFAULT_DECK_SPEC } from '@uno/engine';
+import { buildDeck, DEFAULT_DECK_SPEC } from '@mercy/engine';
 const deck = buildDeck();
 const byKind = new Map<string, number>();
 const byColorKind = new Map<string, number>();

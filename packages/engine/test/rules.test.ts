@@ -16,7 +16,7 @@ import {
   redactFor,
   reduce,
   type Card,
-} from '@uno/engine';
+} from '@mercy/engine';
 import { card, num, pile, player, state } from './helpers.js';
 
 describe('deck', () => {

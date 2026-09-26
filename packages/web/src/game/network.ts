@@ -9,7 +9,7 @@
  * sends, and sends intents back. It never computes authority.
  */
 
-import type { Action, GameEvent, RedactedState } from '@uno/engine';
+import type { Action, GameEvent, RedactedState } from '@mercy/engine';
 import {
   PROTOCOL_VERSION,
   type ChatMessage,
@@ -17,7 +17,7 @@ import {
   type LobbyPlayer,
   type RoomSettings,
   type ServerMessage,
-} from '@uno/protocol';
+} from '@mercy/protocol';
 import type { LogEntry } from './local.js';
 import { describeEvent } from './narrate.js';
 

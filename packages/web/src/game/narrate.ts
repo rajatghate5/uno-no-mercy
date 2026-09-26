@@ -3,7 +3,7 @@
  * identically whichever mode you are in.
  */
 
-import type { GameEvent } from '@uno/engine';
+import type { GameEvent } from '@mercy/engine';
 
 export interface LogEntry {
   text: string;

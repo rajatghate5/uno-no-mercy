@@ -1,5 +1,5 @@
 {
-  "name": "@uno/web",
+  "name": "@mercy/web",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
@@ -8,14 +8,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@uno/bots": "workspace:*",
-    "@uno/engine": "workspace:*",
-    "@uno/protocol": "workspace:*",
+    "@mercy/bots": "workspace:*",
+    "@mercy/engine": "workspace:*",
+    "@mercy/protocol": "workspace:*",
     "three": "^0.186.0"
   },
   "devDependencies": {
     "@types/three": "^0.186.0",
     "vite": "7",
-    "@uno/server": "workspace:*"
+    "@mercy/server": "workspace:*"
   }
 }

@@ -29,7 +29,7 @@
  */
 
 import { Group, PointLight, type Scene } from 'three';
-import type { Card, CardKind, Color } from '@uno/engine';
+import type { Card, CardKind, Color } from '@mercy/engine';
 import { makeCard, type CardObject } from './card3d.js';
 
 const TAU = Math.PI * 2;

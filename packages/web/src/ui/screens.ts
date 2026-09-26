@@ -6,8 +6,8 @@
  * be good at - selection, accessibility, reflow and crispness.
  */
 
-import { COLORS, type Color, type GameOverReason, type RedactedState } from '@uno/engine';
-import type { Difficulty } from '@uno/bots';
+import { COLORS, type Color, type GameOverReason, type RedactedState } from '@mercy/engine';
+import type { Difficulty } from '@mercy/bots';
 import {
   HOUSE_RULE_LIMITS,
   TURN_SECONDS,
@@ -17,7 +17,7 @@ import {
   type LobbyPlayer,
   type RoomSettings,
   type TurnSeconds,
-} from '@uno/protocol';
+} from '@mercy/protocol';
 import { CARD_COLORS } from '../scene/cardArt.js';
 import type { LogEntry } from '../game/narrate.js';
 import type { Stats } from '../game/store.js';

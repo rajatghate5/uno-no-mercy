@@ -6,8 +6,8 @@
  * for WebGL did not invalidate a single assertion here.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { decide, emptyMemory } from '@uno/bots';
-import { DEFAULT_ROOM_SETTINGS } from '@uno/protocol';
+import { decide, emptyMemory } from '@mercy/bots';
+import { DEFAULT_ROOM_SETTINGS } from '@mercy/protocol';
 import { createServer } from '../../server/src/server.js';
 import { NetworkGame } from '../src/game/network.js';
 

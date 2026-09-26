@@ -8,7 +8,7 @@
 # upgrade to Starter if that annoys you.
 services:
   - type: web
-    name: uno-no-mercy
+    name: no-mercy
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free

@@ -7,10 +7,10 @@
  * have a quota error mid-write, and none of that may stop them playing.
  */
 
-import type { Replay } from '@uno/engine';
+import type { Replay } from '@mercy/engine';
 
-const KEY = 'uno-no-mercy:matches';
-const REPLAY_KEY = 'uno-no-mercy:replays';
+const KEY = 'no-mercy:matches';
+const REPLAY_KEY = 'no-mercy:replays';
 const MAX_MATCHES = 200;
 /** Replays are the big ones; keep only the most recent few. */
 const MAX_REPLAYS = 10;

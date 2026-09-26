@@ -7,7 +7,7 @@ import {
   type GameState,
   type Player,
   type RuleConfig,
-} from '@uno/engine';
+} from '@mercy/engine';
 
 let uid = 0;
 export function card(kind: CardKind, color?: Color, rank?: number): Card {

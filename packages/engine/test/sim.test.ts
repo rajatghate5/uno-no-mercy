@@ -2,9 +2,9 @@
  * Simulation tests — the ones that find bugs nobody thought to write a test for.
  */
 import { describe, expect, test } from 'bun:test';
-import { finalState, playback } from '@uno/engine';
+import { finalState, playback } from '@mercy/engine';
 import { simulate, totalCards } from './harness.js';
-import type { Difficulty } from '@uno/bots';
+import type { Difficulty } from '@mercy/bots';
 
 describe('simulation', () => {
   test('500 four-player games all terminate with invariants intact', () => {

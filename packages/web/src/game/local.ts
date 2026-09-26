@@ -20,7 +20,7 @@ import {
   type RedactedState,
   type Replay,
   type RuleConfig,
-} from '@uno/engine';
+} from '@mercy/engine';
 import {
   decide,
   emptyMemory,
@@ -28,7 +28,7 @@ import {
   unoReaction,
   type BotMemory,
   type Difficulty,
-} from '@uno/bots';
+} from '@mercy/bots';
 import { describeEvent, type LogEntry } from './narrate.js';
 
 export type { LogEntry };

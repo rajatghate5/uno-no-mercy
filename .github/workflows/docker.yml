@@ -30,12 +30,12 @@ jobs:
         with:
           context: .
           load: true
-          tags: uno-no-mercy:ci
+          tags: no-mercy:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Start the container
-        run: docker run -d --name uno -p 4040:4040 uno-no-mercy:ci
+        run: docker run -d --name uno -p 4040:4040 no-mercy:ci
 
       # A container that starts and then dies still "starts", so wait for the
       # health endpoint rather than for the run command to return.

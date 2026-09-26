@@ -18,8 +18,8 @@ import {
   type GameEvent,
   type GameState,
   type Replay,
-} from '@uno/engine';
-import { decide, emptyMemory, noteDraw, type BotMemory, type Difficulty } from '@uno/bots';
+} from '@mercy/engine';
+import { decide, emptyMemory, noteDraw, type BotMemory, type Difficulty } from '@mercy/bots';
 
 export class InvariantError extends Error {
   constructor(

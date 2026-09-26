@@ -34,8 +34,8 @@ ENV NODE_ENV=production
 #
 # The runtime used to assemble itself: node_modules from `deps`, then each
 # package copied in separately from the context. That produced an image whose
-# node_modules/@uno/* entries did not resolve to the real sources, and the
-# server died on startup with "Cannot find module '@uno/protocol'" - a
+# node_modules/@mercy/* entries did not resolve to the real sources, and the
+# server died on startup with "Cannot find module '@mercy/protocol'" - a
 # workspace symlink laid down in a stage where the packages were nothing but
 # their package.json files.
 #

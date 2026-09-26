@@ -6,7 +6,7 @@
  * values are clamped rather than trusted.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { DEFAULT_HOUSE_RULES, PROTOCOL_VERSION, cleanHouseRules, type ServerMessage } from '@uno/protocol';
+import { DEFAULT_HOUSE_RULES, PROTOCOL_VERSION, cleanHouseRules, type ServerMessage } from '@mercy/protocol';
 import { createServer } from '../src/server.js';
 
 let handle: ReturnType<typeof createServer>;

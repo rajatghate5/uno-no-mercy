@@ -19,8 +19,8 @@ import {
   type GameState,
   type PlayerSpec,
   type Replay,
-} from '@uno/engine';
-import { decide, emptyMemory, noteDraw, unoReaction, type BotMemory } from '@uno/bots';
+} from '@mercy/engine';
+import { decide, emptyMemory, noteDraw, unoReaction, type BotMemory } from '@mercy/bots';
 import {
   CODE_ALPHABET,
   CODE_LENGTH,
@@ -29,7 +29,7 @@ import {
   type LobbyPlayer,
   type RoomSettings,
   type ServerMessage,
-} from '@uno/protocol';
+} from '@mercy/protocol';
 
 export interface Seat {
   id: string;

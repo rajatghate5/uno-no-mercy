@@ -6,7 +6,7 @@
  * can't be an artefact of who sits first.
  */
 import { simulate } from './harness.js';
-import type { Difficulty } from '@uno/bots';
+import type { Difficulty } from '@mercy/bots';
 
 function matchup(a: Difficulty, b: Difficulty, games = 2000) {
   let aWins = 0;

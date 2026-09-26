@@ -12,7 +12,7 @@ const staticRoot = existsSync(candidate) ? candidate : undefined;
 
 const { server } = createServer({ port, hostname, staticRoot });
 
-console.log(`uno-no-mercy server listening on http://${hostname}:${server.port}`);
+console.log(`no-mercy server listening on http://${hostname}:${server.port}`);
 console.log(staticRoot ? `serving client from ${staticRoot}` : 'no built client - run "bun run build" or use "bun run dev"');
 console.log(`health: http://${hostname}:${server.port}/health`);
 
