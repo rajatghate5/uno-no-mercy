@@ -1,0 +1,42 @@
+# Tests and types, on every pull request.
+#
+# This exists because the unit tests lived ONLY in pages.yml, which runs on
+# push to main and nowhere else - so a pull request was never type-checked or
+# unit-tested. It could fail all 177 tests and nothing would say so until it
+# had already been merged.
+#
+# Kept separate from pages.yml rather than bolted onto it, because that
+# workflow deploys: giving it a pull_request trigger would have it publishing
+# the site from unmerged branches.
+name: CI
+
+on:
+  pull_request:
+  # Also on main, so the check has a result on the default branch. A required
+  # status check that has never reported on main is one GitHub cannot match.
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # The job id is the check name branch protection matches on, so it must be
+  # unique across every workflow. Two jobs called "build" already collided
+  # here: requiring that name would also have matched the Pages build, which
+  # never runs on a pull request, and every PR would have waited forever for
+  # a check that could not arrive.
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run typecheck

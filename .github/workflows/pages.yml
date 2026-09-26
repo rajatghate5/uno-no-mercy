@@ -22,6 +22,9 @@ concurrency:
 
 jobs:
   build:
+    # Named so branch protection can tell this apart from the other
+    # workflow's "build" job; the check name is what it matches on.
+    name: pages
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
