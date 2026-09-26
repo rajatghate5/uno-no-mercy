@@ -19,10 +19,19 @@ against bots, or host a room and share a four-character code.
 Nothing to install, nothing to run. It opens in any modern browser, desktop or
 phone, and starts immediately.
 
-That deploy is the **solo-vs-bots** build. GitHub Pages serves files; it cannot
-run a WebSocket server, so Host / Join / Spectate are shown but disabled there,
-with the reason on screen. Multiplayer needs a server — see
-[Playing with friends](#playing-with-friends).
+Online play works from that link: the page is static, but it is built with the
+address of a game server baked in, so Host / Join / Spectate reach
+<https://no-mercy-5cg1.onrender.com> behind the scenes. That server is also
+playable directly, and serves the same client from its own URL.
+
+> **The server sleeps.** It is on Render's free plan, which idles a service
+> after 15 minutes. The first person to open a room after a quiet spell waits
+> roughly 50 seconds for it to wake; everyone after that is immediate. Solo
+> play never touches it and is always instant.
+
+Leave the `UNO_SERVER` variable unset in a fork and the same build becomes
+solo-only, with the online modes visibly disabled and the reason on screen
+rather than four buttons where three time out.
 
 ## Running it yourself
 
@@ -119,15 +128,39 @@ bun run build && bun run serve  # http://localhost:4040 — game and client
 
 That is what the Dockerfile does, so a deployment is a single container.
 
-## Project structure
+## Packages
+
+A Bun workspace of five packages. They are never published — the scope is a
+local name — but the boundaries between them are real and enforced by tests.
+
+| Package | Path | Depends on | Purpose |
+|---------|------|-----------|---------|
+| `@mercy/engine` | `packages/engine/` | **nothing** | Rules. Pure: no I/O, no clock, no `Math.random` |
+| `@mercy/bots` | `packages/bots/` | engine | Easy / medium / hard opponents. Read redacted state only |
+| `@mercy/protocol` | `packages/protocol/` | engine, bots | Wire message types, shared by client and server |
+| `@mercy/server` | `packages/server/` | engine, bots, protocol | Authoritative WebSocket server; also serves the built client |
+| `@mercy/web` | `packages/web/` | engine, bots, protocol, **three** | The browser client |
+
+```
+engine ◄── bots ◄── protocol ◄── server
+   ▲         ▲         ▲
+   └─────────┴─────────┴──────── web  + three.js
+```
+
+**Three.js is the only external runtime dependency in the whole repo.**
+Everything else is workspace-internal, and `engine` has neither kind — it is
+reachable from every other package and reaches nothing itself, which is what
+makes it testable by exhaustive simulation.
+
+The arrows only point one way, and `architecture.test.ts` keeps it that way:
+the engine may not import anything at all, and the game controllers in
+`web/src/game/` may not import Three. That rule is what let the renderer be
+swapped from a terminal UI to WebGL without touching a line of game logic.
+
+Inside the client:
 
 | Path | Purpose |
 |------|---------|
-| `packages/engine/` | Rules engine. Pure, **zero dependencies**, no I/O, no clock, no `Math.random` |
-| `packages/bots/` | Easy / medium / hard opponents. Read redacted state only |
-| `packages/protocol/` | Wire message types, shared by client and server |
-| `packages/server/` | Authoritative WebSocket server, and static host for the built client |
-| `packages/web/` | The browser client |
 | `packages/web/src/game/` | Game controllers — **no Three.js** |
 | `packages/web/src/scene/` | Everything WebGL: card art, meshes, layout, animation |
 | `packages/web/src/ui/` | The HTML layer: menus, lobby, HUD, chat |
@@ -262,23 +295,31 @@ under the discard reaches the same place and keeps card conservation exact.)
 
 ## Deploying
 
-### GitHub Pages (solo play)
+### GitHub Pages
 
 `.github/workflows/pages.yml` builds and publishes on every push to `main`.
 Enable it once: **Settings → Pages → Source → GitHub Actions**. The site lands
 at `https://<user>.github.io/<repo>/` — for this repo,
 <https://rajatghate5.github.io/no-mercy/>.
 
-**Pages serves static files only — it cannot run the WebSocket server.** The
-workflow therefore ships the solo-vs-bots game, and the client hides the online
-modes rather than offering four options where three time out.
+**Pages serves static files only — it cannot run the WebSocket server.** On its
+own the workflow therefore ships the solo-vs-bots game, and the client disables
+the online modes rather than offering four options where three time out. Point
+it at a server with `UNO_SERVER` (below) and the same build gains multiplayer
+without Pages running anything.
 
 ### Adding multiplayer to a Pages deploy
 
 Host the server anywhere that allows long-lived connections (Render, Fly,
 Railway — the Dockerfile runs as-is), then set a repository variable
 **`UNO_SERVER`** to its URL under Settings → Secrets and variables → Actions →
-Variables. The next deploy picks it up.
+Variables. The next deploy picks it up. This repo's is
+`wss://no-mercy-5cg1.onrender.com/`.
+
+> The variable alone changes nothing. The address is baked into the bundle at
+> **build** time, not read at runtime, so a site already published keeps
+> whatever it was built with until the workflow runs again — Actions → Deploy
+> to GitHub Pages → Run workflow.
 
 > It **must** be `wss://`, not `ws://`. A page served over HTTPS cannot open an
 > insecure WebSocket — the browser blocks it as mixed content — so a `ws://`
@@ -328,7 +369,7 @@ see `resolveServer()`.
 ## Development
 
 ```bash
-bun test              # 119 tests
+bun test              # 177 tests
 bun run typecheck     # root + web
 bun run sim 10000 4   # 10k seeded bot-vs-bot games, invariants checked
 bun run bench         # difficulty matchups
@@ -406,6 +447,42 @@ Both tiers now hold their draw cards in reserve.
 > them races the server and submits duplicate moves.
 
 > **`PCFSoftShadowMap` was removed in three 0.186.** Use `PCFShadowMap`.
+
+> **A UI accent may not be readable as a suit.** The interface accent was
+> `#c9a227` — hue 46 — and the yellow card is `#f2b705`, hue 45. They were the
+> same colour, so every "this is live, this is your turn, this is selected"
+> mark was painted in the colour the game already uses to mean *this card is
+> yellow*; danger sat 15° off the red card. Four fixed suit hues eat most of
+> the wheel: claiming 30° either side leaves gaps of 35° (lime), 14° (cyan)
+> and 78° (violet), and overruns orange outright. So an accent must either
+> have **chroma under 10%**, or sit **more than 55° clear** of 352/45/140/214
+> — which only violet does. Bone at 7% chroma is the current answer. Brass
+> survives as the *material* the one filled button is struck from: it may be
+> an object, never a signal.
+
+> **Reading pixels back from the WebGL canvas in-page returns an empty
+> buffer.** Without `preserveDrawingBuffer`, `drawImage(canvas, …)` after the
+> frame is presented gives black. A check written that way reported zero
+> problems at every viewport and was used to declare a bug fixed that was not.
+> Measure from a real screenshot instead — and discriminate cards from felt
+> while you are there, because a naive brightness threshold counts the lit
+> table: cards genuinely clipped show peak channel 231 at the edge, a clean
+> frame shows 56.
+
+> **Anything lying on the felt needs clearance before you tilt it.** A card's
+> corner is 0.901 units from its centre, so a 0.13 rad rock drops it 0.117 —
+> and the attract cards rested at y = 0.03, putting that corner *under* the
+> table. The felt is a plane, so it clips in a dead-straight line and reads as
+> the card having been sliced off rather than occluded. Clearance must exceed
+> `half-diagonal × sin(max tilt)`, not merely be non-zero.
+
+> **A ring of cards must be sized to the lamp, not to the camera.** The
+> visible felt is a trapezoid — at 1440×900 it runs from z = +4.10 at the
+> bottom of the screen back to −11.28, 11.1 units wide at the near edge and
+> 24.2 at the far one — so a circle can never fit it, and one sized to the
+> camera's width walks its cards out of the spotlight, which is only ~5.9
+> across. Depth also cannot scale with aspect the way width can: the camera
+> switches shape at aspect 1 and takes its vertical fov with it.
 
 ## Status
 
