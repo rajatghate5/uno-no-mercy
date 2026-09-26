@@ -306,7 +306,11 @@ export class Screens {
 
       this.panel(
         el('header', { class: 'masthead' }, [
-          el('h1', { html: "No <span class='mercy'>Mercy</span>" }),
+          // Two spans, because the two words are set at different sizes: a
+          // small spaced "No" over MERCY. See .masthead h1 in styles.css.
+          el('h1', {
+            html: "<span class='no'>No</span><span class='mercy'>Mercy</span>",
+          }),
           el('p', {
             class: 'sub',
             text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
