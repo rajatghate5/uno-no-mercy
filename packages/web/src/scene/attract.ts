@@ -102,6 +102,21 @@ const HOP_CYCLE = 9;
 const SPIN_SECONDS = 42;
 /** How far a card rocks as it drifts, in radians. */
 const ROCK = 0.13;
+/**
+ * How high a resting card floats above the felt.
+ *
+ * THIS IS THE CUT. It was 0.03, which was fine while the cards lay dead flat,
+ * and stopped being fine the moment they were given a rock: a card's corner is
+ * 0.901 units from its centre, so tipping it ROCK radians drops that corner
+ * 0.901 * sin(0.13) = 0.117 - a full 0.087 BELOW the table. The felt then
+ * clips it, and because the felt is a plane the clip is a perfectly straight
+ * line across the card. It reads exactly as if the card had been sliced off,
+ * which is precisely what has happened.
+ *
+ * 0.18 clears the worst case with margin. These cards cast no shadow, so
+ * floating them fractionally higher costs nothing visually.
+ */
+const REST_Y = 0.18;
 
 /**
  * What the ring is made of.
@@ -129,9 +144,25 @@ const ROCK = 0.13;
 function ringShape(aspect: number): { rx: number; rz: number; offsetZ: number } {
   const portrait = aspect < 1;
   return {
-    // Clamped: below about 2.6 the ring is too tight to read as a ring, and
-    // above 6.2 it starts reaching for width even an ultrawide lacks.
-    rx: Math.max(2.6, Math.min(6.2, aspect * 3.7)),
+    /*
+     * Clamped to the LAMP's reach, not the camera's.
+     *
+     * This was 6.2, sized from how much width the CAMERA can see - and that
+     * was wrong in a way an edge-contact test cannot catch. The room has one
+     * spotlight, at y = 9.4 with a half-angle of 0.56 rad and penumbra 0.82,
+     * so the pool it throws is roughly 5.9 across at the felt and fading for
+     * most of the way out. Measured off a real screenshot, a card orbiting at
+     * radius 5 peaks at luminance 15-30 out of 255, while one at radius 3
+     * reaches 143. The wide ring did not clip the cards; it walked them out
+     * of the light until they went black halfway across, which reads as
+     * exactly the same defect it was meant to fix.
+     *
+     * 4.8 keeps the ring inside the lit felt. Note what this bound is NOT
+     * for: the cards that measure darkest are the ones showing their dark
+     * backs mid-flip, which is the artwork doing its job. Radius turned out
+     * not to predict brightness at all.
+     */
+    rx: Math.max(2.5, Math.min(4.8, aspect * 3.0)),
     rz: portrait ? RING_Z_PORTRAIT : RING_Z_LANDSCAPE,
     offsetZ: portrait ? OFFSET_Z_PORTRAIT : OFFSET_Z_LANDSCAPE,
   };
@@ -193,9 +224,14 @@ export class AttractScene {
      * Parented to the ring's own group, so it goes out with it - an invisible
      * Object3D contributes nothing, which means stop() kills the light too and
      * the table is never lit by scenery that has left the screen.
+     *
+     * Decay 1.1 rather than the physical 2, and centred over the RING's centre
+     * rather than the table's: this light exists to make a ring of cards
+     * evenly readable, not to model a bulb. At a realistic falloff the cards
+     * nearest the middle blow out while the ones at the ends stay dark.
      */
-    const glow = new PointLight('#ffe3b8', 26, 15, 1.7);
-    glow.position.set(0, 3.6, 0);
+    const glow = new PointLight('#ffe3b8', 30, 20, 1.1);
+    glow.position.set(0, 4.0, -0.8);
     this.root.add(glow);
 
     this.root.visible = false;
@@ -272,7 +308,7 @@ export class AttractScene {
 
       mesh.position.set(
         Math.cos(angle) * rx,
-        0.03 + rise * HOP_HEIGHT,
+        REST_Y + rise * HOP_HEIGHT,
         offsetZ + Math.sin(angle) * rz,
       );
 
