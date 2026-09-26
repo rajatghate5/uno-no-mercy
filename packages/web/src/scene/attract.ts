@@ -34,8 +34,44 @@ import { makeCard, type CardObject } from './card3d.js';
 
 const TAU = Math.PI * 2;
 
-/** Radius of the ring the cards orbit on, in world units. */
-const RING = 4.5;
+/*
+ * The ring is an ELLIPSE, not a circle, and it is pushed away from the viewer.
+ *
+ * It was a circle of radius 4.5, and it was being sliced off along the bottom
+ * of the window. Measured against the live camera by walking a point across
+ * the felt and asking where it leaves the frame, landscape sees the felt from
+ * z = +4.10 (the bottom edge of the screen) back to z = -11.28, and the
+ * half-width available runs from 5.53 at the near edge to 7.29 at the middle.
+ *
+ * So what the camera sees is a TRAPEZOID - shallow and narrow near the viewer,
+ * deep and wide away from them - and a circle cannot fit inside one. At radius
+ * 4.5 the ring put card edges at z = 5.25 against a limit of 4.10, hanging
+ * 1.15 units below the frame, while never reaching the width available at
+ * either side. It was not too big; it was the wrong shape.
+ *
+ * These numbers put the near arc at 3.0 + 0.75 for half a card = 3.75, which
+ * clears the bottom by 0.35. The far arc lands at -4.6, well inside -11.28.
+ * The widest point of the ellipse falls at z = RING_OFFSET_Z, where there is
+ * about 7.6 of half-width to play with, so 6.0 + half a card fits easily.
+ */
+/**
+ * Depth and offset, per camera shape.
+ *
+ * createStage() switches the camera at aspect 1 - fov 42 and a lower seat in
+ * landscape, fov 62 and a higher one in portrait - and the VERTICAL fov is
+ * what decides how much depth is visible. So depth is two discrete cases
+ * matching that switch, not a ramp across it: landscape sees the felt from
+ * z = +4.10 back to -11.28, portrait from +6.83 back to -22.88.
+ *
+ * Portrait therefore gets a far deeper ring. With the width squeezed down to
+ * fit a phone, a landscape-depth ring would sit entirely behind the menu
+ * text, and the first version of this fix did exactly that - it cleared the
+ * edges by hiding the carousel completely.
+ */
+const RING_Z_LANDSCAPE = 3.8;
+const RING_Z_PORTRAIT = 7.6;
+const OFFSET_Z_LANDSCAPE = -0.8;
+const OFFSET_Z_PORTRAIT = -2.0;
 /**
  * How long one full revolution takes, in seconds.
  *
@@ -74,6 +110,33 @@ const ROCK = 0.13;
  * one place the game gets to say what it is, and a ring of plain number cards
  * says "an ordinary card game" rather than "the brutal one".
  */
+/**
+ * The ring's shape for a given viewport.
+ *
+ * Width and depth behave differently, and that is the whole reason this is a
+ * function rather than three constants.
+ *
+ * WIDTH scales continuously: the half-width the camera can see at a given
+ * depth is directly proportional to the aspect ratio, so the ring can grow
+ * and shrink smoothly as a window is dragged. Landscape at 1.6 has 5.53 units
+ * of half-width at the near edge; PORTRAIT HAS 2.53, which is why a ring
+ * sized for a laptop throws cards off both sides of a phone.
+ *
+ * DEPTH cannot ramp, because the camera does not: it switches shape at aspect
+ * 1 and takes its vertical fov with it. Ramping across that would put the
+ * ring in a shape the camera is not using.
+ */
+function ringShape(aspect: number): { rx: number; rz: number; offsetZ: number } {
+  const portrait = aspect < 1;
+  return {
+    // Clamped: below about 2.6 the ring is too tight to read as a ring, and
+    // above 6.2 it starts reaching for width even an ultrawide lacks.
+    rx: Math.max(2.6, Math.min(6.2, aspect * 3.7)),
+    rz: portrait ? RING_Z_PORTRAIT : RING_Z_LANDSCAPE,
+    offsetZ: portrait ? OFFSET_Z_PORTRAIT : OFFSET_Z_LANDSCAPE,
+  };
+}
+
 const SHOWCASE: ReadonlyArray<{ kind: CardKind; color?: Color; rank?: number }> = [
   { kind: 'wildDrawTen' },
   { kind: 'number', color: 'red', rank: 7 },
@@ -98,6 +161,8 @@ export class AttractScene {
   private readonly cards: CardObject[] = [];
   private elapsed = 0;
   private running = false;
+  /** Viewport shape, so the ring can be as wide as the frame allows. */
+  private aspect = 16 / 9;
 
   constructor(private readonly scene: Scene) {
     SHOWCASE.forEach((spec, i) => {
@@ -148,7 +213,7 @@ export class AttractScene {
     // Advance past the opening beat so the ring is already mid-motion when a
     // screen opens, rather than visibly starting from a dead stop.
     this.elapsed = HOP_CYCLE * 0.37;
-    this.update(0);
+    this.update(0, this.aspect);
   }
 
   stop(): void {
@@ -161,13 +226,18 @@ export class AttractScene {
     this.cards.length = 0;
   }
 
-  /** @param dt milliseconds since the last frame. */
-  update(dt: number): void {
+  /**
+   * @param dt milliseconds since the last frame.
+   * @param aspect viewport width / height. Drives the ring's width; see ringX.
+   */
+  update(dt: number, aspect = this.aspect): void {
+    this.aspect = aspect;
     if (!this.running) return;
     this.elapsed += dt / 1000;
 
     const n = this.cards.length;
     const orbit = (this.elapsed / ORBIT_SECONDS) * TAU;
+    const { rx, rz, offsetZ } = ringShape(this.aspect);
 
     for (let i = 0; i < n; i++) {
       const mesh = this.cards[i]!;
@@ -201,9 +271,9 @@ export class AttractScene {
       const rock = Math.sin(this.elapsed * 0.31 + i * 1.7) * ROCK;
 
       mesh.position.set(
-        Math.cos(angle) * RING,
+        Math.cos(angle) * rx,
         0.03 + rise * HOP_HEIGHT,
-        Math.sin(angle) * RING,
+        offsetZ + Math.sin(angle) * rz,
       );
 
       /*

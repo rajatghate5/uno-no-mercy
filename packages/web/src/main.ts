@@ -132,7 +132,7 @@ function frame(now: number) {
     if (wantScenery) attract.start();
     else attract.stop();
   }
-  attract.update(dt);
+  attract.update(dt, window.innerWidth / window.innerHeight);
   positionSeats();
   stage.renderer.render(stage.scene, stage.camera);
   requestAnimationFrame(frame);

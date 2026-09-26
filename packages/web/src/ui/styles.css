@@ -250,10 +250,14 @@ input[type='text']::placeholder { color: #6f6754; }
 @media (max-width: 640px) {
   .screen {
     background:
-      radial-gradient(ellipse 98% 62% at 50% 48%, #0b0a07fc 0%, #0b0a07f5 54%, #0b0a0700 100%),
-      radial-gradient(ellipse 130% 88% at 50% 48%, #0a0907e6 0%, #0a090700 82%),
-      radial-gradient(ellipse 90% 46% at 50% 38%, #241a0a3d 0%, transparent 74%),
-      linear-gradient(180deg, #050403e0, #05040300 22%, #05040300 78%, #050403e0);
+      radial-gradient(ellipse 98% 58% at 50% 44%, #0b0a07fc 0%, #0b0a07f5 56%, #0b0a0700 100%),
+      radial-gradient(ellipse 130% 78% at 50% 44%, #0a0907c4 0%, #0a090700 84%),
+      radial-gradient(ellipse 90% 46% at 50% 36%, #241a0a3d 0%, transparent 74%),
+      /* The foot is deliberately the lightest part of the page: with the ring
+         reshaped for a phone, the bottom band is the ONLY place a card can be
+         seen, and burying it there was what made the first cut-fix look like
+         it had deleted the carousel. */
+      linear-gradient(180deg, #050403cc, #05040300 20%, #05040300 86%, #05040359);
     padding: 18px;
   }
 }
