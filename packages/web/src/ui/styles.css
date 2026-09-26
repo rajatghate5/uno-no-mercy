@@ -59,7 +59,24 @@
   --line:    #3a3324;
   --ink:     var(--bone);
   --muted:   #9b9078;
-  --accent:  var(--brass);
+  /*
+   * The accent is BONE, not brass, and this is the one measured decision in
+   * the file: brass is hue 46 and the yellow card is hue 45. They are the
+   * same colour. Every "this is live, this is your turn, this is selected"
+   * mark was therefore painted in the colour the game already uses to mean
+   * "this card is yellow", and the danger red sat 15 degrees off the red
+   * card. Three of the interface's colours were sitting on top of two of the
+   * four suits, and that - not the individual swatches - is what read as mud.
+   *
+   * Bone is 7% chroma, so it has no hue that can register against a card. The
+   * rule for anything added later: chroma under 10%, or more than 55 degrees
+   * clear of 352, 45, 140 and 214. Only violet (283) passes the second test.
+   *
+   * Brass has NOT left the room. It is still the material the one filled
+   * button is struck from, and the lamp is still tungsten. The distinction
+   * that matters: brass may be an object, never a signal.
+   */
+  --accent:  #f2ece0;
   --danger:  #c4402f;
   /* Sage, so the one green on screen is not a traffic light. */
   --good:    #86a06a;
@@ -203,10 +220,20 @@ input[type='text']::placeholder { color: #6f6754; }
    * cards are the whole point.
    */
   background:
-    radial-gradient(ellipse 36% 80% at 50% 48%, #0b0a07fc 0%, #0b0a07f2 50%, #0b0a0700 100%),
-    radial-gradient(ellipse 56% 92% at 50% 48%, #0a0907d9 0%, #0a090700 78%),
+    /*
+     * The core is sized to the SPLIT PANES, not to the viewport.
+     *
+     * Two numbers set it: the panes are 980px in a 1440 frame (so they span
+     * 16%-84% horizontally) and about 420px tall (27%-73%). The first layer's
+     * opaque core has to reach those edges or the carousel - which is now lit
+     * and genuinely bright - runs straight through the menu text. Everything
+     * outside stays open on purpose: that is where the cards are supposed to
+     * be seen.
+     */
+    radial-gradient(ellipse 56% 42% at 50% 50%, #0b0a07f7 0%, #0b0a07f2 56%, #0b0a0700 100%),
+    radial-gradient(ellipse 78% 62% at 50% 50%, #0a0907a6 0%, #0a090700 86%),
     radial-gradient(ellipse 60% 52% at 50% 40%, #241a0a3d 0%, transparent 72%),
-    radial-gradient(ellipse 86% 78% at 50% 46%, #06050300 34%, #050403f2 88%);
+    radial-gradient(ellipse 94% 92% at 50% 50%, #05040300 62%, #050403b3 96%);
   padding: 24px;
 }
 
@@ -312,6 +339,99 @@ h2 {
 /* ---------- modular menu ---------- */
 /* The wordmark is now four times the size it was; it needs the room. */
 .masthead { display: flex; flex-direction: column; gap: 16px; }
+
+/* ---------- split: two panes ---------- */
+
+/*
+ * Identity on the left, the decision on the right.
+ *
+ * A third-width centred column on a wide display IS a dialog in a void, which
+ * is what every screen here read as. Two panes use the width, and - more
+ * importantly - they separate the things that never change from the things
+ * that rebuild as you choose, so the eye learns where each kind lives.
+ */
+.card-panel.split {
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
+  gap: 0;
+  align-items: stretch;
+  padding: 0;
+}
+.pane-left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 10px 40px 10px 8px;
+  /* A hairline, not a border: the two panes are one plate, ruled. */
+  border-right: 1px solid var(--line);
+}
+.pane-right {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 10px 8px 10px 40px;
+  justify-content: center;
+  /*
+   * The right pane holds every piece of small text on the screen, over a ring
+   * of cards that is now genuinely moving. min-height stops the pane - and so
+   * the whole page - jumping as you switch between a mode that needs three
+   * rows and one that needs seven.
+   */
+  min-height: 330px;
+}
+/* Pushes the way out to the foot of the left pane, away from the real action. */
+.pane-foot { margin-top: auto; padding-top: 10px; }
+.pane-foot button {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 0;
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration: underline;
+  text-decoration-color: #ffffff26;
+  text-underline-offset: 4px;
+}
+.pane-foot button:hover:not(:disabled) {
+  background: none;
+  color: var(--ink);
+  text-decoration-color: var(--accent);
+}
+
+/*
+ * On a phone, the old answer was the right one.
+ *
+ * One column at 390px is not a compromise - it is what the content wants at
+ * that width. So the panes stack, the rule moves from the side to between
+ * them, and the foot rejoins the flow.
+ */
+@media (max-width: 760px) {
+  /*
+   * display:contents on the left pane, so its children become direct children
+   * of the panel and can be ORDERED independently.
+   *
+   * Without it the whole left pane moves as one block, which put "Your
+   * record" - the way OUT of this screen - above the four ways to play. The
+   * last thing in the reading order on a desktop has to stay last on a phone;
+   * stacking two panes must not reshuffle the sequence inside them.
+   */
+  .card-panel.split {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    width: min(470px, 100%);
+  }
+  .pane-left { display: contents; }
+  .pane-right {
+    padding: 18px 0 0;
+    min-height: 0;
+    gap: 20px;
+    /* The rule the left pane was carrying, now that the left pane has no box. */
+    border-top: 1px solid var(--line);
+  }
+  .pane-foot { order: 9; margin-top: 0; padding-top: 0; }
+}
 
 /* A labelled block per concern, so the panel reads as sections rather than
    one undifferentiated stack of controls. */

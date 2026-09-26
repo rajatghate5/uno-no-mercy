@@ -55,6 +55,41 @@ export class Screens {
     return screen;
   }
 
+  /**
+   * Two panes: who you are on the left, what you are deciding on the right.
+   *
+   * Every screen used to be one centred column, and on anything wider than a
+   * phone that column used about a third of the width - so the page read as a
+   * dialog box floating in a void rather than as a place. Worse, a single
+   * stacked width forces everything to the same visual weight: the four ways
+   * to play, the bot-count stepper and the Deal button each got one full-width
+   * row, as though choosing to host and nudging a number were decisions of the
+   * same size.
+   *
+   * The left pane is stable - identity, context, the way out. The right pane
+   * is what changes as you make choices. Two fixed zones instead of one
+   * growing stack, and the eye learns where each kind of thing lives.
+   *
+   * On a phone it collapses to exactly the old single column, because at that
+   * width the old answer was the right one.
+   *
+   * Deliberately NOT applied to the short screens - Connecting, Could not
+   * join, Game over. Those are moments rather than pages, with three elements
+   * between them; splitting three things across two panes leaves one pane
+   * empty and looks like a mistake. They keep panel().
+   */
+  private split(left: (Node | string)[], right: (Node | string)[]): HTMLElement {
+    const screen = el('div', { class: 'screen' }, [
+      el('div', { class: 'card-panel split' }, [
+        el('div', { class: 'pane-left' }, left),
+        el('div', { class: 'pane-right' }, right),
+      ]),
+    ]);
+    clear(this.root);
+    this.root.append(screen);
+    return screen;
+  }
+
   close(): void {
     clear(this.root);
   }
@@ -300,23 +335,31 @@ export class Screens {
             text: mode === 'solo' ? 'Deal' : mode === 'host' ? 'Create room' : 'Connect',
             onClick: go,
           }),
-          el('button', { text: 'Your record', onClick: opts.onStats }),
         ]),
       );
 
-      this.panel(
-        el('header', { class: 'masthead' }, [
-          // Two spans, because the two words are set at different sizes: a
-          // small spaced "No" over MERCY. See .masthead h1 in styles.css.
-          el('h1', {
-            html: "<span class='no'>No</span><span class='mercy'>Mercy</span>",
-          }),
-          el('p', {
-            class: 'sub',
-            text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
-          }),
-        ]),
-        ...body,
+      this.split(
+        [
+          el('header', { class: 'masthead' }, [
+            // Two spans, because the two words are set at different sizes: a
+            // small spaced "No" over MERCY. See .masthead h1 in styles.css.
+            el('h1', {
+              html: "<span class='no'>No</span><span class='mercy'>Mercy</span>",
+            }),
+            el('p', {
+              class: 'sub',
+              text: '168 cards. Draw cards stack, 7s swap hands, 0s pass them along, and 25 cards knocks you out.',
+            }),
+          ]),
+          // The left pane's foot. "Your record" is a way out of this screen,
+          // not one of the things you came here to decide, so it belongs with
+          // the identity rather than beside Deal - which is what made the two
+          // of them read as an equal pair of buttons.
+          el('div', { class: 'pane-foot' }, [
+            el('button', { text: 'Your record', onClick: opts.onStats }),
+          ]),
+        ],
+        body,
       );
     };
 
@@ -443,36 +486,42 @@ export class Screens {
       }
     }
 
-    this.panel(
-      el('h2', { text: 'Waiting room' }),
-      el('div', { class: 'code-display', text: opts.code }),
-      el('p', {
-        class: 'sub',
-        text: opts.isHost
-          ? 'Read that code out. Everyone else picks "Join a game" and types it.'
-          : 'Waiting for the host to deal.',
-      }),
-      el('p', {
-        class: 'hint',
-        text: `${humans.length} of ${seats} seat${seats === 1 ? '' : 's'} taken`,
-      }),
-      el('div', { class: 'players' }, rows),
-      ...controls,
-      el('div', { class: 'actions' }, [
-        opts.isHost
-          ? el('button', {
-              class: 'primary',
-              // One human and no bots is not a game; say so on the button.
-              text:
-                humans.length + (opts.settings?.botCount ?? 0) < 2
-                  ? 'Waiting for players…'
-                  : 'Deal',
-              disabled: humans.length + (opts.settings?.botCount ?? 0) < 2,
-              onClick: opts.onStart,
-            })
-          : el('button', { text: 'Waiting…', disabled: true }),
-        el('button', { text: 'Leave', onClick: opts.onLeave }),
-      ]),
+    this.split(
+      [
+        el('h2', { text: 'Waiting room' }),
+        // The code is the one thing on this screen somebody has to read out
+        // across a room, so it gets a pane to itself.
+        el('div', { class: 'code-display', text: opts.code }),
+        el('p', {
+          class: 'sub',
+          text: opts.isHost
+            ? 'Read that code out. Everyone else picks "Join a game" and types it.'
+            : 'Waiting for the host to deal.',
+        }),
+      ],
+      [
+        el('p', {
+          class: 'hint',
+          text: `${humans.length} of ${seats} seat${seats === 1 ? '' : 's'} taken`,
+        }),
+        el('div', { class: 'players' }, rows),
+        ...controls,
+        el('div', { class: 'actions' }, [
+          opts.isHost
+            ? el('button', {
+                class: 'primary',
+                // One human and no bots is not a game; say so on the button.
+                text:
+                  humans.length + (opts.settings?.botCount ?? 0) < 2
+                    ? 'Waiting for players…'
+                    : 'Deal',
+                disabled: humans.length + (opts.settings?.botCount ?? 0) < 2,
+                onClick: opts.onStart,
+              })
+            : el('button', { text: 'Waiting…', disabled: true }),
+          el('button', { text: 'Leave', onClick: opts.onLeave }),
+        ]),
+      ],
     );
   }
 

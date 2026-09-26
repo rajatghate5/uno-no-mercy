@@ -5,17 +5,30 @@
  * lit and ready, but the panel's scrim was 91% opaque so nothing showed
  * through. A game about cards looked like a settings dialog.
  *
- * This runs a slow carousel of real card faces - the same textures the table
- * uses, so nothing here is a mock-up - with one card at a time lifting and
- * flipping over. Deliberately unhurried: it sits BEHIND text that people are
- * reading, and anything quick enough to notice is quick enough to annoy.
+ * This runs a carousel of real card faces - the same textures the table uses,
+ * so nothing here is a mock-up - orbiting, turning on the spot, and lifting
+ * into a flip.
+ *
+ * It used to be far slower: one revolution every two and a half minutes and a
+ * single flip per card every twenty-six seconds, which meant that in the ten
+ * seconds anyone actually spends on the menu you saw no motion at all. The
+ * reasoning behind that was sound - this sits behind text people are reading -
+ * but it solved the problem by removing the thing instead of placing it. Now
+ * the ring is genuinely alive, and the SPLIT layout is what makes that safe:
+ * the text lives in two columns with a lit ground under each, and the cards
+ * turn in the space between and around them.
+ *
+ * Three motions, on purpose, because one is a loop and three is a scene:
+ * the ring carries every card slowly around the table; each card turns on the
+ * spot at its own rate, so no two are ever square to each other; and cards
+ * take turns lifting off the felt and flipping over.
  *
  * Driven procedurally from `update(dt)` rather than through the Animator.
  * There is no state to keep in sync and no tween that can be left dangling
  * when a screen closes mid-flight.
  */
 
-import { Group, type Scene } from 'three';
+import { Group, PointLight, type Scene } from 'three';
 import type { Card, CardKind, Color } from '@uno/engine';
 import { makeCard, type CardObject } from './card3d.js';
 
@@ -23,14 +36,36 @@ const TAU = Math.PI * 2;
 
 /** Radius of the ring the cards orbit on, in world units. */
 const RING = 4.5;
-/** How long one full revolution takes, in seconds. */
-const ORBIT_SECONDS = 150;
+/**
+ * How long one full revolution takes, in seconds.
+ *
+ * Was 150. At that rate a card crosses about four degrees in the time someone
+ * reads the menu, which is motion you can measure but not see.
+ */
+const ORBIT_SECONDS = 58;
 /** Fraction of each card's cycle spent in the air. */
-const HOP = 0.16;
+const HOP = 0.3;
 /** How high a hopping card rises. */
-const HOP_HEIGHT = 1.15;
-/** How long one card waits between its own hops, in seconds. */
-const HOP_CYCLE = 26;
+const HOP_HEIGHT = 1.5;
+/**
+ * How long one card waits between its own flips, in seconds.
+ *
+ * With sixteen cards each offset by i/n of the cycle, a HOP of 0.3 puts
+ * roughly five in the air at any moment - enough that something is always
+ * turning over, few enough that the ring never looks like it is boiling.
+ */
+const HOP_CYCLE = 9;
+/**
+ * Seconds for a card to turn once on the spot, at the ring's slowest.
+ *
+ * Each card gets its own rate from this, so the ring never falls into step
+ * with itself. A ring of cards all square to the centre reads as a machine
+ * part; a ring where every card sits at its own angle reads as a table
+ * somebody has been playing at.
+ */
+const SPIN_SECONDS = 42;
+/** How far a card rocks as it drifts, in radians. */
+const ROCK = 0.13;
 
 /**
  * What the ring is made of.
@@ -80,6 +115,24 @@ export class AttractScene {
       this.cards.push(mesh);
       this.root.add(mesh);
     });
+    /*
+     * The ring needs its own light, and this is why.
+     *
+     * The table's lamp is a tight spotlight over the middle - that is the
+     * whole Back Room idea - and the ring orbits at 4.5 units, well outside
+     * its cone. So the carousel was running the entire time and showing as
+     * faint silhouettes: sixteen real card faces, none of them readable. A
+     * menu whose one piece of character is invisible reads as bland, and the
+     * fix for that is light, not more motion.
+     *
+     * Parented to the ring's own group, so it goes out with it - an invisible
+     * Object3D contributes nothing, which means stop() kills the light too and
+     * the table is never lit by scenery that has left the screen.
+     */
+    const glow = new PointLight('#ffe3b8', 26, 15, 1.7);
+    glow.position.set(0, 3.6, 0);
+    this.root.add(glow);
+
     this.root.visible = false;
     scene.add(this.root);
   }
@@ -120,12 +173,32 @@ export class AttractScene {
       const mesh = this.cards[i]!;
       const angle = orbit + (i / n) * TAU;
 
-      // Each card gets its own slice of the cycle, so exactly one is in the
-      // air at a time and the eye has a single thing to follow.
+      /*
+       * Each card's own slice of the flip cycle.
+       *
+       * The i/n offset is what spreads the flips around the ring instead of
+       * letting all sixteen turn over at once, which would read as a single
+       * shuffling object rather than as sixteen cards.
+       */
       const phase = ((this.elapsed / HOP_CYCLE + i / n) % 1 + 1) % 1;
       const hopping = phase < HOP;
       const t = hopping ? phase / HOP : 0;
-      const rise = hopping ? Math.sin(t * Math.PI) : 0;
+      // sin gives a rise and fall; squaring the ease makes it leave the felt
+      // faster than it lands, which is how a thrown card actually behaves.
+      const rise = hopping ? Math.sin(t * Math.PI) ** 0.8 : 0;
+
+      /*
+       * A per-card rate that never divides evenly into the others.
+       *
+       * The 0.37 multiplier on a card's index means the rates are mutually
+       * irrational enough that the ring takes hours to repeat a pose. Using
+       * i/n instead would have every card back where it started once per
+       * orbit, and the loop would be visible.
+       */
+      const spin = (this.elapsed / (SPIN_SECONDS * (1 + (i * 0.37) % 1))) * TAU;
+
+      // A slow rock, so a card at rest is still breathing rather than pinned.
+      const rock = Math.sin(this.elapsed * 0.31 + i * 1.7) * ROCK;
 
       mesh.position.set(
         Math.cos(angle) * RING,
@@ -133,13 +206,18 @@ export class AttractScene {
         Math.sin(angle) * RING,
       );
 
-      // Euler XYZ: rot.x lays the card flat, so carrying the flip there turns
-      // it face-over-back in place. rot.z is the in-plane spin, which is what
-      // keeps every card square to the middle of the table as the ring turns.
+      /*
+       * Euler XYZ, composed as Rx * Ry * Rz - so rot.z is applied FIRST, in
+       * the card's own frame, and rot.x lays it flat afterwards.
+       *
+       * That is why the flip belongs in x (it turns the card face-over-back
+       * where it lies) and the spin belongs in z (it turns the card in the
+       * plane of the felt). Putting the spin in y would stand it on its edge.
+       */
       mesh.rotation.set(
         -Math.PI / 2 + t * TAU,
-        0,
-        -angle + Math.PI / 2,
+        rock * (1 - rise),
+        spin,
       );
     }
   }
